@@ -2,7 +2,32 @@ module SFIMathKernel
 
 using Statistics
 
-export gray_threshold, bright_pixel_count, connected_components_count
+include("stats.jl")
+include("filter.jl")
+include("threshold.jl")
+include("morphology.jl")
+include("components.jl")
+
+export gray_threshold,
+    bright_pixel_count,
+    connected_components_count,
+    gray_stats,
+    gray_histogram,
+    otsu_threshold,
+    adaptive_threshold,
+    threshold_mask,
+    gaussian_blur_3x3,
+    median_filter_3x3,
+    apply_preproc,
+    morph_erode_3x3,
+    morph_dilate_3x3,
+    morph_open_3x3,
+    morph_close_3x3,
+    apply_morph,
+    connected_components_labels,
+    blob_stats_from_labels,
+    filter_blobs,
+    largest_blob
 
 """
     gray_threshold(data, threshold) -> BitVector
@@ -25,34 +50,11 @@ end
 """
     connected_components_count(mask, width, height) -> Int
 
-Simple 4-connected component count on a row-major boolean mask (Phase 2 stub).
+4-connected component count on a row-major boolean mask.
 """
 function connected_components_count(mask::AbstractVector{Bool}, width::Int, height::Int)
-    n = length(mask)
-    @assert n == width * height
-    visited = falses(n)
-    components = 0
-    for idx in 1:n
-        mask[idx] || continue
-        visited[idx] && continue
-        components += 1
-        stack = [idx]
-        while !isempty(stack)
-            i = pop!(stack)
-            visited[i] && continue
-            visited[i] = true
-            mask[i] || continue
-            x = (i - 1) % width
-            y = (i - 1) ÷ width
-            for (dx, dy) in ((0, -1), (0, 1), (-1, 0), (1, 0))
-                nx, ny = x + dx, y + dy
-                (nx < 0 || ny < 0 || nx >= width || ny >= height) && continue
-                j = ny * width + nx + 1
-                !visited[j] && mask[j] && push!(stack, j)
-            end
-        end
-    end
-    return components
+    labels = connected_components_labels(mask, width, height)
+    return maximum(labels)
 end
 
 end # module

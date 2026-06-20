@@ -71,6 +71,54 @@ pub struct VisionSection {
     pub threshold: u64,
     #[serde(default)]
     pub roi: RoiSection,
+    #[serde(default)]
+    pub algorithm: AlgorithmSection,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AlgorithmSection {
+    #[serde(default = "default_preproc")]
+    pub preproc: String,
+    #[serde(default = "default_threshold_mode")]
+    pub threshold_mode: String,
+    #[serde(default = "default_morph")]
+    pub morph: String,
+    #[serde(default)]
+    pub blob: BlobFilterSection,
+}
+
+fn default_preproc() -> String {
+    "none".into()
+}
+fn default_threshold_mode() -> String {
+    "fixed".into()
+}
+fn default_morph() -> String {
+    "none".into()
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BlobFilterSection {
+    #[serde(default = "default_one")]
+    pub min_area: u32,
+    #[serde(default = "default_max_area")]
+    pub max_area: u32,
+    #[serde(default)]
+    pub min_aspect: f64,
+    #[serde(default = "default_max_aspect")]
+    pub max_aspect: f64,
+}
+
+fn default_one() -> u32 {
+    1
+}
+fn default_max_area() -> u32 {
+    u32::MAX / 2
+}
+fn default_max_aspect() -> f64 {
+    100.0
 }
 
 fn default_plugin() -> String {
@@ -315,6 +363,21 @@ pub fn default_profile_path(repo_root: &Path) -> PathBuf {
     repo_root.join("domains/industrial-inspection/profiles/line-realtime.yaml")
 }
 
+/// Task `params.algorithm` block for Julia defect-detect / vision-2d.
+pub fn algorithm_params_json(vision: &VisionSection) -> serde_json::Value {
+    serde_json::json!({
+        "preproc": vision.algorithm.preproc,
+        "thresholdMode": vision.algorithm.threshold_mode,
+        "morph": vision.algorithm.morph,
+        "blob": {
+            "minArea": vision.algorithm.blob.min_area,
+            "maxArea": vision.algorithm.blob.max_area,
+            "minAspect": vision.algorithm.blob.min_aspect,
+            "maxAspect": vision.algorithm.blob.max_aspect,
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,6 +388,8 @@ mod tests {
         let store = ProfileStore::load(default_profile_path(&root)).expect("load");
         assert_eq!(store.snapshot().name, "line-realtime");
         assert_eq!(store.params().threshold, 128);
+        assert_eq!(store.snapshot().vision.algorithm.preproc, "none");
+        assert_eq!(store.snapshot().vision.algorithm.blob.min_area, 16);
         assert!(store.snapshot().compliance.audit_config_changes);
     }
 

@@ -61,51 +61,23 @@ function crop_roi_pixels(pixels, width, height, roi)
 end
 
 function process_task(req)
-    threshold = get(get(req, :params, Dict()), "threshold", 128)
     frame = req.frame
     pixels = mmap_gray8(frame.shm_name, frame.byte_length, get(frame, :offset, 0))
     width = Int(frame.width)
     height = Int(frame.height)
-    roi = get(get(req, :params, Dict()), "roi", nothing)
+    params = Dict(string(k) => v for (k, v in pairs(get(req, :params, Dict())))
+    roi = get(params, "roi", nothing)
     if roi !== nothing
         pixels, width, height = crop_roi_pixels(pixels, width, height, roi)
     end
-
-    components, bright, gmean, bbox = detect_surface_defects(
-        pixels, width, height; threshold=threshold,
-    )
-
-    detections = []
-    if components > 0
-        bb = bbox === nothing ? (
-            x=width * 0.25,
-            y=height * 0.25,
-            width=width * 0.5,
-            height=height * 0.5,
-        ) : bbox
-        push!(detections, Dict(
-            "class_id" => 1,
-            "label" => "surface_defect",
-            "score" => min(0.99, 0.5 + 0.1 * components),
-            "bbox" => Dict(
-                "x" => bb.x,
-                "y" => bb.y,
-                "width" => bb.width,
-                "height" => bb.height,
-            ),
-        ))
-    end
-
-    return Dict(
-        "task_id" => req.task_id,
-        "status" => "ok",
-        "message" => "defect-detect julia",
-        "detections" => detections,
-        "metrics" => [
-            Dict("name" => "gray_mean", "value" => gmean, "unit" => "dn"),
-            Dict("name" => "bright_pixels", "value" => bright, "unit" => "count"),
-            Dict("name" => "defect_components", "value" => components, "unit" => "count"),
-        ],
+    return process_defect_task(
+        pixels,
+        width,
+        height,
+        params;
+        task_id=req.task_id,
+        message="defect-detect julia",
+        label="surface_defect",
     )
 end
 

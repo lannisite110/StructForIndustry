@@ -22,7 +22,10 @@ cargo run -p sfi-plugin-host --bin sfi-mock-defect-detect
 | Name | Description |
 |------|-------------|
 | `gray_mean` | Frame mean gray level |
-| `bright_pixels` | Pixels ≥ threshold |
-| `defect_components` | Connected components count |
+| `bright_pixels` | Pixels ≥ threshold used |
+| `defect_components` | Blobs after morphology + area/aspect filter |
+| `threshold_used` | Fixed / Otsu / adaptive effective threshold (DN) |
+
+Profile `vision.algorithm` controls preproc (`none|gaussian_3x3|median_3x3`), `thresholdMode` (`fixed|otsu|adaptive`), `morph` (`none|open_3x3|close_3x3`), and `blob` filters.
 
 SPC engine on bus rolls `gray_mean` and `ng_rate` into topic `spc.metrics`.

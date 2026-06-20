@@ -8,3 +8,9 @@ Statistics = "1.10"
 
 [compat]
 julia = "1.9"
+
+[extras]
+Test = "8dfed614-e22c-5e08-985e-1159e3b38699"
+
+[targets]
+test = ["Test"]

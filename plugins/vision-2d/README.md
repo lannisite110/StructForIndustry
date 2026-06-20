@@ -1,8 +1,8 @@
 # plugins/vision-2d
 
-2D vision utilities — detection, measurement, SPC hooks.
+2D vision utilities — shares the **same defect pipeline** as `defect-detect` (`SFIDefectDetect.process_defect_task`).
 
-Used by `domains/industrial-inspection` (AOI line).
+Used by `domains/industrial-inspection` (AOI line) when `vision.plugin: vision-2d` in profile.
 
 ## Run (Julia sidecar)
 

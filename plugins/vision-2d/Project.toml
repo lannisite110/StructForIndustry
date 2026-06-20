@@ -6,6 +6,7 @@ version = "0.0.1"
 [deps]
 JSON3 = "1"
 Mmap = "1"
+SFIDefectDetect = { path = "../../domains/industrial-inspection/plugins/defect-detect" }
 SFIMathKernel = { path = "../../core/math-kernel" }
 Sockets = "1"
 

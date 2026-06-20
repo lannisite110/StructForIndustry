@@ -1,6 +1,6 @@
 using JSON3
 using Mmap
-using SFIMathKernel
+using SFIDefectDetect
 using Sockets
 
 const WIRE_API_VERSION = 1
@@ -19,8 +19,18 @@ function write_framed_response(sock, resp)
     write(sock, body)
 end
 
+function shm_path(name::AbstractString)
+    if startswith(name, "/dev/shm/")
+        return name
+    elseif startswith(name, "/")
+        return joinpath("/dev/shm", lstrip(name, '/'))
+    else
+        return joinpath("/dev/shm", name)
+    end
+end
+
 function mmap_gray8(shm_name::AbstractString, byte_length::Integer, offset::Integer=0)
-    path = startswith(shm_name, "/") ? shm_name : "/dev/shm/$(shm_name)"
+    path = shm_path(shm_name)
     io = open(path, "r")
     try
         bytes = Mmap.mmap(io, Mmap.Anonymous, byte_length, offset)
@@ -30,38 +40,42 @@ function mmap_gray8(shm_name::AbstractString, byte_length::Integer, offset::Inte
     end
 end
 
+function crop_roi_pixels(pixels, width, height, roi)
+    x = Int(get(roi, "x", 0))
+    y = Int(get(roi, "y", 0))
+    w = Int(get(roi, "width", width))
+    h = Int(get(roi, "height", height))
+    x = clamp(x, 0, width - 1)
+    y = clamp(y, 0, height - 1)
+    w = min(w, width - x)
+    h = min(h, height - y)
+    out = UInt8[]
+    for row in 0:(h - 1)
+        yy = y + row
+        start = yy * width + x
+        append!(out, pixels[(start + 1):(start + w)])
+    end
+    return out, w, h
+end
+
 function process_task(req)
-    threshold = get(get(req, :params, Dict()), "threshold", 128)
     frame = req.frame
     pixels = mmap_gray8(frame.shm_name, frame.byte_length, get(frame, :offset, 0))
-    bright = bright_pixel_count(pixels, threshold)
-    mask = gray_threshold(pixels, threshold)
-    components = connected_components_count(mask, Int(frame.width), Int(frame.height))
-
-    detections = []
-    if components > 0
-        push!(detections, Dict(
-            "class_id" => 1,
-            "label" => "defect",
-            "score" => 0.85,
-            "bbox" => Dict(
-                "x" => frame.width * 0.25,
-                "y" => frame.height * 0.25,
-                "width" => frame.width * 0.5,
-                "height" => frame.height * 0.5,
-            ),
-        ))
+    width = Int(frame.width)
+    height = Int(frame.height)
+    params = Dict(string(k) => v for (k, v in pairs(get(req, :params, Dict())))
+    roi = get(params, "roi", nothing)
+    if roi !== nothing
+        pixels, width, height = crop_roi_pixels(pixels, width, height, roi)
     end
-
-    return Dict(
-        "task_id" => req.task_id,
-        "status" => "ok",
-        "message" => "vision-2d julia",
-        "detections" => detections,
-        "metrics" => [
-            Dict("name" => "bright_pixels", "value" => bright, "unit" => "count"),
-            Dict("name" => "components", "value" => components, "unit" => "count"),
-        ],
+    return process_defect_task(
+        pixels,
+        width,
+        height,
+        params;
+        task_id=req.task_id,
+        message="vision-2d julia",
+        label="defect",
     )
 end
 

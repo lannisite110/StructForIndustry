@@ -8,10 +8,7 @@ echo "== math-kernel =="
 julia --project=core/math-kernel -e '
 using Pkg
 Pkg.instantiate()
-include("core/math-kernel/src/SFIMathKernel.jl")
-using SFIMathKernel
-@assert bright_pixel_count(UInt8[1, 200, 3], 128) == 1
-println("SFIMathKernel OK")
+Pkg.test()
 '
 
 echo "== vision-2d (parse server_impl) =="
@@ -28,8 +25,8 @@ using Pkg
 Pkg.instantiate()
 include("domains/industrial-inspection/plugins/defect-detect/src/SFIDefectDetect.jl")
 using SFIDefectDetect
-c, b, g, bb = detect_surface_defects(fill(UInt8(200), 16), 4, 4; threshold=128)
-@assert c >= 1 && b == 16
+c, b, g, bb, t = detect_surface_defects(fill(UInt8(200), 16), 4, 4; threshold=128)
+@assert c >= 1 && b == 16 && t == 128
 println("SFIDefectDetect OK")
 '
 
