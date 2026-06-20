@@ -1,0 +1,25 @@
+name: autonomous-robotics
+version: 0.0.1
+apiVersion: 0
+splitRepo: sfi-domain-robotics
+status: scaffold
+description: Sensor fusion, planning, and control for AV and robotics.
+
+capabilities:
+  - perception.fusion
+  - planning.motion
+  - control.realtime
+
+dependencies:
+  core:
+    - contracts
+    - hal-rs
+    - core-bus
+    - plugin-host
+  optional:
+    - math-kernel
+  plugins:
+    - ai-infer
+
+profiles:
+  default: profiles/vehicle-perception.yaml

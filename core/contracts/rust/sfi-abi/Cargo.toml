@@ -1,0 +1,6 @@
+[package]
+name = "sfi-abi"
+version = "0.0.1"
+description = "C ABI types for sfi-platform in-process plugins (matches abi/sfi.h)"
+edition.workspace = true
+license.workspace = true

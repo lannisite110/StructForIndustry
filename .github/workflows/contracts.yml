@@ -1,0 +1,66 @@
+name: contracts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "core/contracts/**"
+      - "core/plugin-host/**"
+      - "core/core-bus/**"
+      - "core/hal-rs/**"
+      - "core/math-kernel/**"
+      - "plugins/vision-2d/**"
+      - "domains/industrial-inspection/**"
+      - "tools/fake-plugin/**"
+      - "tools/sfi-cli/**"
+      - "tools/scripts/**"
+      - "Cargo.toml"
+      - ".github/workflows/contracts.yml"
+  pull_request:
+    paths:
+      - "core/contracts/**"
+      - "core/plugin-host/**"
+      - "core/core-bus/**"
+      - "core/hal-rs/**"
+      - "core/math-kernel/**"
+      - "plugins/vision-2d/**"
+      - "domains/industrial-inspection/**"
+      - "tools/fake-plugin/**"
+      - "tools/sfi-cli/**"
+      - "tools/scripts/**"
+      - "Cargo.toml"
+      - ".github/workflows/contracts.yml"
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y capnproto
+
+      - name: Validate schemas
+        run: ./core/contracts/scripts/validate-schemas.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo test (workspace)
+        run: cargo test --workspace --all-targets
+
+  julia-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.10"
+
+      - name: Julia project checks
+        run: ./tools/scripts/julia-check.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Julia shm E2E
+        run: ./tools/scripts/shm-julia-e2e.sh

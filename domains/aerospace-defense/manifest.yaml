@@ -1,0 +1,24 @@
+name: aerospace-defense
+version: 0.0.1
+apiVersion: 0
+splitRepo: sfi-domain-aerospace
+status: scaffold
+description: Flight software, avionics, and mission simulation with certification hooks.
+
+capabilities:
+  - avionics.sensor
+  - flight.control
+  - mission.simulate
+  - secure.comms
+
+dependencies:
+  core:
+    - contracts
+    - hal-rs
+    - core-bus
+    - plugin-host
+  optional:
+    - math-kernel
+
+profiles:
+  default: profiles/flight-control.yaml

@@ -1,0 +1,65 @@
+{
+  "folders": [
+    {
+      "name": "📦 sfi-platform (root)",
+      "path": "."
+    },
+    {
+      "name": "⚙️ core / contracts",
+      "path": "core/contracts"
+    },
+    {
+      "name": "⚙️ core / hal-rs",
+      "path": "core/hal-rs"
+    },
+    {
+      "name": "⚙️ core / core-bus",
+      "path": "core/core-bus"
+    },
+    {
+      "name": "⚙️ core / math-kernel",
+      "path": "core/math-kernel"
+    },
+    {
+      "name": "⚙️ core / plugin-host",
+      "path": "core/plugin-host"
+    },
+    {
+      "name": "🏭 industrial-inspection",
+      "path": "domains/industrial-inspection"
+    },
+    {
+      "name": "🚗 autonomous-robotics",
+      "path": "domains/autonomous-robotics"
+    },
+    {
+      "name": "📈 quant-finance",
+      "path": "domains/quant-finance"
+    },
+    {
+      "name": "🧬 bio-medical",
+      "path": "domains/bio-medical"
+    },
+    {
+      "name": "🛩️ aerospace-defense",
+      "path": "domains/aerospace-defense"
+    },
+    {
+      "name": "☁️ cloud-edge",
+      "path": "domains/cloud-edge"
+    },
+    {
+      "name": "🔌 plugins",
+      "path": "plugins"
+    },
+    {
+      "name": "🛠️ tools",
+      "path": "tools"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.git": true
+    }
+  }
+}

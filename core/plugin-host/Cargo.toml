@@ -1,0 +1,33 @@
+[package]
+name = "sfi-plugin-host"
+version = "0.0.1"
+description = "In-process and out-of-process plugin runtime (apiVersion 0)"
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sfi-mock-vision"
+path = "src/bin/sfi-mock-vision.rs"
+
+[[bin]]
+name = "sfi-mock-defect-detect"
+path = "src/bin/sfi-mock-defect-detect.rs"
+
+[dependencies]
+capnp = { workspace = true }
+libc = "0.2"
+libloading = "0.8"
+memmap2 = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sfi-abi = { path = "../contracts/rust/sfi-abi" }
+sfi-contracts = { path = "../contracts/rust/sfi-contracts" }
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+fake-plugin = { path = "../../tools/fake-plugin" }
+tempfile = "3"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "time"] }

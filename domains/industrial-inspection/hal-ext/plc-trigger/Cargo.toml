@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "sfi-plc-trigger"
+version = "0.0.1"
+description = "PLC trigger simulator — Unix socket TRIG → HAL frame publish"
+edition = "2021"
+license = "Apache-2.0"
+
+[[bin]]
+name = "sfi-plc-trigger"
+path = "src/main.rs"
+
+[dependencies]
+memmap2 = "0.9"
+sfi-core-bus = { path = "../../../../core/core-bus" }
+sfi-line-frame = { path = "../line-frame" }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

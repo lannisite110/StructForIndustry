@@ -1,0 +1,15 @@
+[package]
+name = "fake-plugin"
+version = "0.0.1"
+description = "Mock in-process plugin for sfi-platform contract tests"
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+capnp = { workspace = true }
+sfi-abi = { path = "../../core/contracts/rust/sfi-abi" }
+sfi-contracts = { path = "../../core/contracts/rust/sfi-contracts" }
+libc = "0.2"

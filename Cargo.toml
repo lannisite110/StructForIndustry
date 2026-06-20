@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "core/contracts/rust/sfi-contracts",
+    "core/contracts/rust/sfi-abi",
+    "core/core-bus",
+    "tools/fake-plugin",
+    "core/plugin-host",
+    "tools/sfi-cli",
+]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+capnp = "0.20"
+capnpc = "0.20"

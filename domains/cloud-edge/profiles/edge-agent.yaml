@@ -1,0 +1,12 @@
+name: edge-agent
+domain: cloud-edge
+
+scheduler:
+  mode: elastic
+  backpressure: true
+  maxQueueDepth: 64
+  tenantQuotaEnabled: true
+
+compliance:
+  multiTenantAudit: true
+  dataResidencyPolicy: configurable

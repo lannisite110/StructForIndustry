@@ -1,0 +1,10 @@
+name = "SFISpcMetrics"
+uuid = "d4e5f6a7-b8c9-0123-def0-234567890123"
+authors = ["StructForIndustry"]
+version = "0.0.1"
+
+[deps]
+Statistics = "1.10"
+
+[compat]
+julia = "1.9"

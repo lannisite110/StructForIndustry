@@ -1,0 +1,15 @@
+name: vision-2d
+version: 0.0.1
+apiVersion: 0
+kind: outOfProcess
+description: Gray8 threshold defect detection sidecar
+
+capabilities:
+  - vision.detect.defect
+
+entry: julia
+args:
+  - --project=plugins/vision-2d
+  - plugins/vision-2d/server.jl
+
+socket: sfi-plugin-vision.sock

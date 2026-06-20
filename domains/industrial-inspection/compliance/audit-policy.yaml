@@ -1,0 +1,17 @@
+# Result retention and audit policy (Phase 3 template)
+
+audit:
+  configChanges: true
+  logPath: "${SFI_DATA_DIR:-/var/lib/sfi}/audit.log"
+
+retention:
+  resultsDays: 90
+  imageHandlesDays: 30
+
+traceability:
+  requiredFields:
+    - timestampNs
+    - recipeVersion
+    - frameId
+    - sourceId
+    - verdict  # OK | NG

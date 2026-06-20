@@ -1,0 +1,12 @@
+[workspace]
+
+[package]
+name = "sfi-line-frame"
+version = "0.0.1"
+description = "Shared Gray8 shm frame helpers for industrial HAL simulation"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+memmap2 = "0.9"
+sfi-core-bus = { path = "../../../../core/core-bus" }

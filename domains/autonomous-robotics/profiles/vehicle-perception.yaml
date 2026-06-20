@@ -1,0 +1,17 @@
+name: vehicle-perception
+domain: autonomous-robotics
+
+scheduler:
+  mode: priority
+  dropStaleFrames: false
+  safetyTopicsNeverDrop: true
+  maxQueueDepth: 4
+
+hal:
+  sensors:
+    - lidar
+    - camera
+    - imu
+
+compliance:
+  functionalSafetyProfile: iso26262-placeholder

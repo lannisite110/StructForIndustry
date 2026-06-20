@@ -1,0 +1,13 @@
+name = "SFIVision2D"
+uuid = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+authors = ["StructForIndustry"]
+version = "0.0.1"
+
+[deps]
+JSON3 = "1"
+Mmap = "1"
+SFIMathKernel = { path = "../../core/math-kernel" }
+Sockets = "1"
+
+[compat]
+julia = "1.9"

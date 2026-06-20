@@ -1,0 +1,13 @@
+name: clinical-imaging
+domain: bio-medical
+
+scheduler:
+  mode: bounded-latency
+  dropStaleFrames: false
+  maxQueueDepth: 8
+  defaultDeadlineMs: 200
+
+compliance:
+  auditAllAccess: true
+  patientDataEncryption: required
+  regulatoryProfile: fda-placeholder

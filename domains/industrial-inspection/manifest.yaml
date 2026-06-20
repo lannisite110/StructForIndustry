@@ -1,0 +1,27 @@
+name: industrial-inspection
+version: 0.0.1
+apiVersion: 0
+splitRepo: sfi-domain-industrial
+status: active
+description: Production-line vision, defect detection, SPC, and MES integration.
+
+capabilities:
+  - vision.inspect
+  - vision.measure
+  - spc.metrics
+  - mes.integration
+
+dependencies:
+  core:
+    - contracts
+    - hal-rs
+    - core-bus
+    - plugin-host
+  optional:
+    - math-kernel
+  plugins:
+    - vision-2d
+    - ai-infer
+
+profiles:
+  default: profiles/line-realtime.yaml

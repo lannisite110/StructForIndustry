@@ -1,0 +1,10 @@
+name = "SFIMathKernel"
+uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+authors = ["StructForIndustry"]
+version = "0.0.1"
+
+[deps]
+Statistics = "1.10"
+
+[compat]
+julia = "1.9"

@@ -1,0 +1,12 @@
+name: flight-control
+domain: aerospace-defense
+
+scheduler:
+  mode: cyclic-rt
+  periodMs: 10
+  watchdogEnabled: true
+  dropStaleFrames: false
+
+compliance:
+  certificationProfile: do178c-placeholder
+  exportControlReview: required

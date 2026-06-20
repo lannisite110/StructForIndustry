@@ -1,0 +1,46 @@
+# AOI line realtime profile — Phase 3
+name: line-realtime
+domain: industrial-inspection
+version: 0.0.1
+
+scheduler:
+  mode: realtime
+  dropStaleFrames: true
+  maxQueueDepth: 2
+  defaultDeadlineMs: 50
+  autoVision: true
+  taskType: vision.detect.defect
+
+vision:
+  plugin: defect-detect
+  threshold: 128
+  roi:
+    x: 0
+    y: 0
+    width: 1920
+    height: 1080
+
+hal:
+  captureMode: triggered
+  framePoolSize: 8
+  resolution:
+    width: 1920
+    height: 1080
+
+spc:
+  windowSize: 32
+  persist: true
+  persistCapacity: 4096
+  metrics:
+    - gray_mean
+    - ng_rate
+
+mes:
+  enabled: false
+  endpoint: "http://127.0.0.1:8090/inspection/result"
+  batchId: line-1
+
+compliance:
+  auditConfigChanges: true
+  retainResultsDays: 90
+  policy: compliance/audit-policy.yaml

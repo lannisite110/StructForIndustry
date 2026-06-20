@@ -1,0 +1,34 @@
+# Build outputs
+target/
+**/target/
+zig-out/
+build/
+dist/
+*.o
+*.a
+*.so
+*.dylib
+
+# Julia
+Manifest.toml.lock
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+
+# Logs & temp
+*.log
+tmp/
+.cache/
