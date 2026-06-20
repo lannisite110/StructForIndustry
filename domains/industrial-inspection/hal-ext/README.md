@@ -7,7 +7,7 @@ Phase 3 stack for AOI line: simulation + **real V4L2 USB capture**.
 | Binary | Role |
 |--------|------|
 | `sfi-line-frame` (lib) | Gray8 shm fill, YUYV→gray8, HAL notify builder |
-| `sfi-line-publisher` | Periodic triggered frames (simulates encoder/PLC loop) |
+| `sfi-line-publisher` | Periodic triggered frames (simulates encoder/PLC loop); `SFI_LINE_FRAME_FILE=<raw Gray8>` replays exact pixels (e.g. `sfi-anomaly dump`) |
 | `sfi-plc-trigger` | Unix socket `TRIG` → synthetic frame (simulates PLC pulse) |
 | **`sfi-v4l2-capture`** | **Real USB camera (V4L2) → Gray8 shm + HAL notify** |
 | **`sfi-gige-capture`** | **GigE / GenICam scaffold (mock + SDK hook)** |

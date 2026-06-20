@@ -6,10 +6,15 @@ version = "0.0.1"
 description = "ONNX inference sidecar — reference stub + optional ORT (Phase 4)"
 edition = "2021"
 license = "Apache-2.0"
+default-run = "sfi-ai-infer"
 
 [[bin]]
 name = "sfi-ai-infer"
 path = "src/main.rs"
+
+[[bin]]
+name = "sfi-anomaly"
+path = "src/bin/anomaly_tool.rs"
 
 [features]
 default = []
@@ -17,6 +22,7 @@ onnx = ["dep:ort", "ort/load-dynamic"]
 
 [dependencies]
 sfi-plugin-host = { path = "../../core/plugin-host" }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ort = { version = "2.0.0-rc.9", optional = true, default-features = false }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread"] }

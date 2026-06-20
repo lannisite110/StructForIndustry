@@ -65,6 +65,12 @@ jobs:
             cargo clippy --manifest-path "$mf" --all-targets -- -D warnings
           done
 
+      - name: ai-infer (separate workspace) fmt + clippy + test
+        run: |
+          cargo fmt --manifest-path plugins/ai-infer/Cargo.toml -- --check
+          cargo clippy --manifest-path plugins/ai-infer/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path plugins/ai-infer/Cargo.toml
+
       - name: 1080p bench smoke
         run: ./tools/scripts/bench-1080p.sh
 
@@ -104,6 +110,12 @@ jobs:
         run: |
           chmod +x tools/scripts/onnx-infer-e2e.sh
           ./tools/scripts/onnx-infer-e2e.sh
+
+      - name: Anomaly (OK-only) E2E + reports
+        run: |
+          chmod +x tools/scripts/anomaly-infer-e2e.sh tools/scripts/anomaly-reports.sh
+          ./tools/scripts/anomaly-infer-e2e.sh
+          ./tools/scripts/anomaly-reports.sh
 
       - uses: goto-bus-stop/setup-zig@v2
         with:

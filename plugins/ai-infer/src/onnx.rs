@@ -45,10 +45,7 @@ pub fn reference_defect_score(pixels: &[u8], width: u32, height: u32) -> Option<
     if pixels.len() < w * h || w == 0 || h == 0 {
         return None;
     }
-    let sum: f32 = pixels[..w * h]
-        .iter()
-        .map(|&p| p as f32 / 255.0)
-        .sum();
+    let sum: f32 = pixels[..w * h].iter().map(|&p| p as f32 / 255.0).sum();
     Some(sum / (w * h) as f32)
 }
 
@@ -67,7 +64,9 @@ pub fn onnx_defect_score(model: &Path, pixels: &[u8], width: u32, height: u32) -
 }
 
 pub fn model_path_from_env() -> Option<std::path::PathBuf> {
-    std::env::var("SFI_ONNX_MODEL").ok().map(std::path::PathBuf::from)
+    std::env::var("SFI_ONNX_MODEL")
+        .ok()
+        .map(std::path::PathBuf::from)
 }
 
 #[cfg(test)]

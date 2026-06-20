@@ -124,7 +124,7 @@
 | 模块 | 语言 | 交付物 | 内容要点 |
 |------|------|--------|----------|
 | `plugins/ai-infer` | ONNX RT (`ort`) | 推理插件 | 加载 ONNX；`Task.type = infer.onnx`（默认 reference stub，`--features onnx` 走真 ORT） |
-| OK-only 模型 | — | 模型 | PatchCore / EfficientAD 异常检测，塞进 ai-infer |
+| OK-only 模型 ✅ | Rust | 模型 + 工具 | PatchCore/EfficientAD-lite（`anomaly.rs`）：仅用 OK 样本标定，per-cell 最近邻距离打分，仿射光照不变；`sfi-anomaly calibrate/score/dump/report`，`SFI_ANOMALY_MODEL` 接入；E2E：缺陷→NG、OK→OK |
 | 模型管线 | — | 文档 | 训练/导出 → ONNX → ai-infer |
 | 资源管理 | Rust | plugin-host 扩展 | GPU 显存配额、批推理、队列合并 |
 | A/B 路径 | industrial | 配置开关 | 同一工位：传统 CV vs 深度学习对比 |
@@ -147,9 +147,9 @@
 | 边缘 runtime | `domains/industrial-inspection` | Rust + Zig | 轻量部署、远程配置、健康上报 |
 | 部署 | `examples/deploy` | Docker | 单机 compose（已有 docker-demo-smoke） |
 | 可观测 | — | metrics/logs | Prometheus：fps、延迟、队列深度、插件重启次数（已有 metrics 雏形） |
-| **三张表** | `docs/` 或 report | 报告 | 换型曲线 / 推理延迟表 / 光照 ablation |
+| **三张表** ✅ | `docs/reports/` | 报告 | 换型曲线 / 推理延迟表 / 光照 ablation（`tools/scripts/anomaly-reports.sh` 生成，合成帧；待替换为实验台数据） |
 
-**里程碑**: 工业边缘节点可独立部署；产出换型、延迟、光照三张表。
+**里程碑**: 工业边缘节点可独立部署；产出换型、延迟、光照三张表（首版已落地于 `docs/reports/`，数据源为合成帧，接实验台后即为真实结果）。
 
 **人力（估）**: 1–2 平台，约 4–8 周。
 

@@ -307,6 +307,7 @@ name = "sfi-ai-infer"
 version = "0.0.1"
 dependencies = [
  "ort",
+ "serde",
  "serde_json",
  "sfi-plugin-host",
  "tokio",

@@ -1,15 +1,66 @@
-mod onnx;
-
 use std::path::PathBuf;
 
+use sfi_ai_infer::{anomaly, onnx};
 use sfi_plugin_host::{
-    encode_framed_response, mock_infer_response, shm_gray8, BBox, Detection, Metric,
-    TaskRequest, TaskResponse,
+    encode_framed_response, mock_infer_response, shm_gray8, BBox, Detection, Metric, TaskRequest,
+    TaskResponse,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 
+fn anomaly_response(req: &TaskRequest, model: &anomaly::AnomalyModel) -> Option<TaskResponse> {
+    let pixels =
+        shm_gray8::read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset).ok()?;
+    let result = model.score(&pixels, req.frame.width, req.frame.height)?;
+    let cell_w = req.frame.width as f32 / model.grid_w as f32;
+    let cell_h = req.frame.height as f32 / model.grid_h as f32;
+    Some(TaskResponse {
+        task_id: req.task_id,
+        status: "ok".into(),
+        message: "ai-infer (anomaly)".into(),
+        detections: if result.is_defect() {
+            vec![Detection {
+                class_id: 7,
+                label: "anomaly".into(),
+                score: result.score,
+                bbox: BBox {
+                    x: result.worst_col as f32 * cell_w,
+                    y: result.worst_row as f32 * cell_h,
+                    width: cell_w,
+                    height: cell_h,
+                },
+            }]
+        } else {
+            vec![]
+        },
+        metrics: vec![
+            Metric {
+                name: "infer_ms".into(),
+                value: 2.0,
+                unit: "ms".into(),
+            },
+            Metric {
+                name: "anomaly_score".into(),
+                value: result.score as f64,
+                unit: "dist".into(),
+            },
+            Metric {
+                name: "anomaly_threshold".into(),
+                value: result.threshold as f64,
+                unit: "dist".into(),
+            },
+        ],
+    })
+}
+
 fn infer_response(req: &TaskRequest) -> TaskResponse {
+    if let Some(path) = anomaly::model_path_from_env() {
+        if let Ok(model) = anomaly::AnomalyModel::load(&path) {
+            if let Some(resp) = anomaly_response(req, &model) {
+                return resp;
+            }
+        }
+    }
     if let Some(model) = onnx::model_path_from_env() {
         if model.exists() {
             if let Ok(pixels) =
@@ -75,9 +126,8 @@ async fn handle_connection(mut stream: UnixStream) -> std::io::Result<()> {
             continue;
         }
         let resp = infer_response(&req);
-        let framed = encode_framed_response(&resp).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-        })?;
+        let framed = encode_framed_response(&resp)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
         stream.write_all(&framed).await?;
     }
 }

@@ -27,6 +27,13 @@ async fn main() -> std::io::Result<()> {
     let byte_len = byte_length();
     let mut mmap = map_shm(&shm_name, byte_len)?;
 
+    // Optional: replay a raw Gray8 frame file instead of synthesizing one.
+    // Lets external tools (e.g. sfi-anomaly dump) drive the exact pixels.
+    let replay_frame: Option<Vec<u8>> = std::env::var("SFI_LINE_FRAME_FILE")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .and_then(|p| std::fs::read(p).ok());
+
     tracing::info!(
         bus = %bus_socket.display(),
         shm = %shm_name,
@@ -46,7 +53,10 @@ async fn main() -> std::io::Result<()> {
     let mut sent: u64 = 0;
 
     loop {
-        if std::env::var("SFI_ONNX_E2E").ok().as_deref() == Some("1") {
+        if let Some(frame) = &replay_frame {
+            let n = frame.len().min(mmap.len());
+            mmap[..n].copy_from_slice(&frame[..n]);
+        } else if std::env::var("SFI_ONNX_E2E").ok().as_deref() == Some("1") {
             mmap.fill(200);
         } else {
             fill_frame(&mut mmap, frame_id, true);
