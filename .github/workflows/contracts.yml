@@ -76,6 +76,16 @@ jobs:
           cd core/hal-rs
           zig build
 
+  docker-demo-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker demo smoke
+        run: |
+          chmod +x tools/scripts/docker-demo-smoke.sh
+          ./tools/scripts/docker-demo-smoke.sh
+
   julia-check:
     runs-on: ubuntu-latest
     steps:

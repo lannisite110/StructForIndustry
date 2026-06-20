@@ -1,4 +1,6 @@
 FROM rust:1-bookworm AS builder
+RUN apt-get update && apt-get install -y capnproto \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
 RUN cargo build --release -p sfi-core-bus -p sfi-plugin-host \
@@ -11,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 WORKDIR /app
 COPY --from=builder /app/target/release/sfi-bus /usr/local/bin/
 COPY --from=builder /app/target/release/sfi-mock-defect-detect /usr/local/bin/
+COPY --from=builder /app/target/release/sfi-mock-ai-infer /usr/local/bin/
 COPY --from=builder /app/domains/industrial-inspection/hal-ext/line-publisher/target/release/sfi-line-publisher /usr/local/bin/
 COPY --from=builder /app/domains/industrial-inspection/plugins/mes-reporter/target/release/sfi-mes-reporter /usr/local/bin/
 COPY domains/industrial-inspection /app/domains/industrial-inspection

@@ -4,18 +4,27 @@ RUN_DIR="${XDG_RUNTIME_DIR:-/tmp}/sfi-docker-demo"
 mkdir -p "$RUN_DIR" "$SFI_DATA_DIR/frames"
 BUS_SOCK="$RUN_DIR/bus.sock"
 VISION_SOCK="$RUN_DIR/vision.sock"
+INFER_SOCK="$RUN_DIR/infer.sock"
 HTTP_ADDR="${SFI_BUS_HTTP:-0.0.0.0:8080}"
 MES_ADDR="127.0.0.1:8090"
-PROFILE="/app/domains/industrial-inspection/profiles/line-realtime.yaml"
+PROFILE="${SFI_PROFILE:-/app/domains/industrial-inspection/profiles/line-realtime.yaml}"
 SHM_NAME="sfi.aoi.docker"
 
-SFI_VISION_PLUGIN_SOCKET="$VISION_SOCK" sfi-mock-defect-detect &
+PLUGIN_SOCK="$VISION_SOCK"
+if [[ "$PROFILE" == *line-infer* ]]; then
+  SFI_INFER_SOCKET="$INFER_SOCK" sfi-mock-ai-infer &
+  PLUGIN_SOCK="$INFER_SOCK"
+else
+  SFI_VISION_PLUGIN_SOCKET="$VISION_SOCK" sfi-mock-defect-detect &
+fi
+
 SFI_MES_ADDR="$MES_ADDR" sfi-mes-reporter &
 sleep 0.5
 
 SFI_BUS_SOCKET="$BUS_SOCK" \
 SFI_BUS_HTTP="$HTTP_ADDR" \
-SFI_VISION_PLUGIN_SOCKET="$VISION_SOCK" \
+SFI_VISION_PLUGIN_SOCKET="$PLUGIN_SOCK" \
+SFI_INFER_SOCKET="$PLUGIN_SOCK" \
 SFI_PROFILE="$PROFILE" \
 SFI_MES_ENABLED=1 \
 SFI_MES_ENDPOINT="http://$MES_ADDR/inspection/result" \
@@ -28,5 +37,5 @@ if command -v sfi-line-publisher >/dev/null; then
     sfi-line-publisher &
 fi
 
-echo "AOI demo listening on http://${HTTP_ADDR#*://}/"
+echo "AOI demo listening on http://${HTTP_ADDR#*://}/ (profile=$(basename "$PROFILE"))"
 exec tail -f /dev/null

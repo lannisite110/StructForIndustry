@@ -9,6 +9,7 @@ services:
       - sfi-data:/var/lib/sfi
     environment:
       SFI_DATA_DIR: /var/lib/sfi
+      SFI_PROFILE: ${SFI_PROFILE:-/app/domains/industrial-inspection/profiles/line-realtime.yaml}
 
   prometheus:
     image: prom/prometheus:v2.54.1
