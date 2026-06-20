@@ -3,8 +3,8 @@ mod onnx;
 use std::path::PathBuf;
 
 use sfi_plugin_host::{
-    encode_framed_response, mock_infer_response, shm_gray8, BBox, Detection, FrameRef, Metric,
-    TaskRequest, TaskResponse, WIRE_API_VERSION,
+    encode_framed_response, mock_infer_response, shm_gray8, BBox, Detection, Metric,
+    TaskRequest, TaskResponse,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
@@ -22,12 +22,12 @@ fn infer_response(req: &TaskRequest) -> TaskResponse {
                     return TaskResponse {
                         task_id: req.task_id,
                         status: "ok".into(),
-                        message: "ai-infer (onnx)".into(),
+                        message: "ai-infer (onnx-ref)".into(),
                         detections: if has_defect {
                             vec![Detection {
                                 class_id: 99,
                                 label: "ai_defect".into(),
-                                score: score as f32,
+                                score,
                                 bbox: BBox {
                                     x: req.frame.width as f32 * 0.1,
                                     y: req.frame.height as f32 * 0.1,
@@ -122,6 +122,7 @@ async fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sfi_plugin_host::{FrameRef, WIRE_API_VERSION};
 
     #[test]
     fn infer_response_ok() {

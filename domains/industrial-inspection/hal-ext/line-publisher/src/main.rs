@@ -46,7 +46,11 @@ async fn main() -> std::io::Result<()> {
     let mut sent: u64 = 0;
 
     loop {
-        fill_frame(&mut mmap, frame_id, true);
+        if std::env::var("SFI_ONNX_E2E").ok().as_deref() == Some("1") {
+            mmap.fill(200);
+        } else {
+            fill_frame(&mut mmap, frame_id, true);
+        }
         let notify = sfi_line_frame::build_notify(frame_id, &shm_name, byte_len as u64);
         publisher.publish(&notify).await?;
         tracing::info!(frame_id, "published triggered frame");

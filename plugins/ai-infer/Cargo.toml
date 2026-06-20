@@ -3,7 +3,7 @@
 [package]
 name = "sfi-ai-infer"
 version = "0.0.1"
-description = "Mock ONNX inference sidecar (Phase 4 scaffold)"
+description = "ONNX inference sidecar — reference stub + optional ORT (Phase 4)"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -13,12 +13,12 @@ path = "src/main.rs"
 
 [features]
 default = []
-onnx = ["dep:ort"]
+onnx = ["dep:ort", "ort/load-dynamic"]
 
 [dependencies]
 sfi-plugin-host = { path = "../../core/plugin-host" }
 serde_json = "1"
-ort = { version = "2", optional = true, default-features = false, features = ["load-dynamic"] }
+ort = { version = "2.0.0-rc.9", optional = true, default-features = false }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"

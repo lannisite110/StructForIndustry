@@ -11,6 +11,10 @@ license = "Apache-2.0"
 name = "sfi-v4l2-capture"
 path = "src/main.rs"
 
+[lib]
+name = "sfi_v4l2"
+path = "src/capture.rs"
+
 [dependencies]
 memmap2 = "0.9"
 sfi-core-bus = { path = "../../../../core/core-bus" }

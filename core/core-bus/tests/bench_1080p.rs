@@ -1,4 +1,4 @@
-//! 1080p shm → defect-detect latency smoke (mock sidecar).
+//! Phase 3 — 1080p shm → defect-detect latency (P95 budget 50ms mock path).
 
 use std::time::{Duration, Instant};
 
@@ -13,6 +13,8 @@ use tokio::time::{sleep, timeout};
 const WIDTH: u32 = 1920;
 const HEIGHT: u32 = 1080;
 const BYTE_LEN: u64 = (WIDTH * HEIGHT) as u64;
+const SAMPLES: usize = 20;
+const P95_BUDGET_MS: u64 = 50;
 
 #[tokio::test]
 async fn bench_1080p_pipeline_under_budget() {
@@ -66,10 +68,11 @@ async fn bench_1080p_pipeline_under_budget() {
     }
 
     let mut publisher = HalPublisher::connect(&bus_socket).await.unwrap();
+
     let mut notify = HalFrameNotify {
-        frame_id: 9001,
+        frame_id: 9000,
         timestamp_ns: 1,
-        sequence: 1,
+        sequence: 0,
         width: WIDTH,
         height: HEIGHT,
         stride: WIDTH,
@@ -86,28 +89,46 @@ async fn bench_1080p_pipeline_under_budget() {
     let shm_notify = format!("/{shm_tag}");
     notify.shm_name[..shm_notify.len()].copy_from_slice(shm_notify.as_bytes());
 
-    let start = Instant::now();
-    publisher.publish(&notify).await.unwrap();
+    let mut latencies = Vec::with_capacity(SAMPLES);
 
-    timeout(Duration::from_secs(10), async {
-        loop {
-            if bus.stats().snapshot().task_done_published >= 1 {
-                break;
+    for i in 0..SAMPLES {
+        notify.frame_id = 9001 + i as u64;
+        notify.sequence = notify.frame_id;
+        let done_before = bus.stats().snapshot().task_done_published;
+
+        let start = Instant::now();
+        publisher.publish(&notify).await.unwrap();
+
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if bus.stats().snapshot().task_done_published > done_before {
+                    break;
+                }
+                sleep(Duration::from_millis(1)).await;
             }
-            sleep(Duration::from_millis(5)).await;
-        }
-    })
-    .await
-    .expect("timeout waiting for task.done");
+        })
+        .await
+        .expect("timeout waiting for task.done");
 
-    let elapsed = start.elapsed();
-    // Phase 3 target is P95 < 50ms on production HW; mock + 2MB shm read budget 500ms in CI.
-    assert!(
-        elapsed < Duration::from_millis(500),
-        "1080p pipeline too slow: {:?}",
-        elapsed
+        latencies.push(start.elapsed());
+    }
+
+    latencies.sort();
+    let p95_idx = ((SAMPLES as f64 * 0.95).ceil() as usize).saturating_sub(1);
+    let p95 = latencies[p95_idx];
+    let median = latencies[SAMPLES / 2];
+
+    eprintln!(
+        "1080p pipeline latency: median={:?} p95={:?} (budget {}ms)",
+        median, p95, P95_BUDGET_MS
     );
-    eprintln!("1080p pipeline latency: {:?}", elapsed);
+
+    assert!(
+        p95 < Duration::from_millis(P95_BUDGET_MS),
+        "1080p P95 too slow: {:?} (budget {}ms)",
+        p95,
+        P95_BUDGET_MS
+    );
 
     listener.abort();
     mock.abort();

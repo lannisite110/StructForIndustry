@@ -74,7 +74,10 @@ jobs:
             tools/scripts/v4l2-capture-e2e.sh \
             tools/scripts/v4l2-trigger-e2e.sh \
             tools/scripts/gige-capture-e2e.sh \
-            tools/scripts/modbus-plc-e2e.sh
+            tools/scripts/modbus-plc-e2e.sh \
+            tools/scripts/modbus-v4l2-e2e.sh \
+            tools/scripts/opcua-plc-e2e.sh \
+            tools/scripts/onnx-infer-e2e.sh
           tools/scripts/setup-v4l2loopback.sh
           SFI_V4L2_DEVICE=/dev/video42 ./tools/scripts/v4l2-capture-e2e.sh
           SFI_V4L2_DEVICE=/dev/video42 ./tools/scripts/v4l2-trigger-e2e.sh
@@ -83,6 +86,13 @@ jobs:
         run: |
           ./tools/scripts/gige-capture-e2e.sh
           ./tools/scripts/modbus-plc-e2e.sh
+          ./tools/scripts/opcua-plc-e2e.sh
+          SFI_V4L2_DEVICE=/dev/video42 ./tools/scripts/modbus-v4l2-e2e.sh
+
+      - name: ONNX infer E2E
+        run: |
+          chmod +x tools/scripts/onnx-infer-e2e.sh
+          ./tools/scripts/onnx-infer-e2e.sh
 
       - uses: goto-bus-stop/setup-zig@v2
         with:

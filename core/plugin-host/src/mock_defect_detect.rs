@@ -7,7 +7,10 @@ use tokio::net::{UnixListener, UnixStream};
 
 use crate::mock_vision::encode_framed_response;
 use crate::plugin_wire::{BBox, Detection, Metric, TaskRequest, TaskResponse};
-use crate::shm_gray8::{bright_pixel_count, crop_roi, gray_mean, read_gray8};
+use crate::shm_gray8::{
+    bright_pixel_count, bright_pixels_in_roi_limit, crop_roi, gray_mean, gray_mean_roi, mmap_gray8,
+    read_gray8,
+};
 
 pub async fn run_mock_defect_detect_sidecar(socket_path: &Path) -> std::io::Result<()> {
     if socket_path.exists() {
@@ -60,11 +63,89 @@ pub fn mock_defect_response(req: &TaskRequest) -> TaskResponse {
         .and_then(|v| v.as_u64())
         .unwrap_or(128) as u8;
 
+    if let Ok(mmap) = mmap_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset) {
+        return response_from_mmap(req, &mmap, threshold);
+    }
     if let Ok(pixels) = read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset) {
         return response_from_pixels(req, &pixels, threshold);
     }
 
     fallback_response(req, threshold)
+}
+
+fn response_from_mmap(req: &TaskRequest, mmap: &[u8], threshold: u8) -> TaskResponse {
+    let (rx, ry, rw, rh) = roi_bounds(req);
+    let bright = bright_pixels_in_roi_limit(
+        mmap,
+        req.frame.stride,
+        rx,
+        ry,
+        rw,
+        rh,
+        threshold,
+        1,
+    );
+    let has_defect = bright > 0;
+    let gmean = gray_mean_roi(mmap, req.frame.stride, req.frame.width, rx, ry, rw, rh);
+
+    TaskResponse {
+        task_id: req.task_id,
+        status: "ok".into(),
+        message: "mock defect-detect (shm-mmap)".into(),
+        detections: if has_defect {
+            vec![Detection {
+                class_id: 1,
+                label: "surface_defect".into(),
+                score: 0.9,
+                bbox: BBox {
+                    x: rw as f32 * 0.25,
+                    y: rh as f32 * 0.25,
+                    width: rw as f32 * 0.5,
+                    height: rh as f32 * 0.5,
+                },
+            }]
+        } else {
+            vec![]
+        },
+        metrics: vec![
+            Metric {
+                name: "gray_mean".into(),
+                value: gmean,
+                unit: "dn".into(),
+            },
+            Metric {
+                name: "bright_pixels".into(),
+                value: bright as f64,
+                unit: "count".into(),
+            },
+            Metric {
+                name: "defect_components".into(),
+                value: if has_defect { 1.0 } else { 0.0 },
+                unit: "count".into(),
+            },
+        ],
+    }
+}
+
+fn roi_bounds(req: &TaskRequest) -> (u32, u32, u32, u32) {
+    let roi = req.params.get("roi");
+    let rx = roi
+        .and_then(|r| r.get("x"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let ry = roi
+        .and_then(|r| r.get("y"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let rw = roi
+        .and_then(|r| r.get("width"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(req.frame.width as u64) as u32;
+    let rh = roi
+        .and_then(|r| r.get("height"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(req.frame.height as u64) as u32;
+    (rx, ry, rw, rh)
 }
 
 fn response_from_pixels(req: &TaskRequest, pixels: &[u8], threshold: u8) -> TaskResponse {

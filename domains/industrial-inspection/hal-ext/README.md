@@ -12,6 +12,7 @@ Phase 3 stack for AOI line: simulation + **real V4L2 USB capture**.
 | **`sfi-v4l2-capture`** | **Real USB camera (V4L2) → Gray8 shm + HAL notify** |
 | **`sfi-gige-capture`** | **GigE / GenICam scaffold (mock + SDK hook)** |
 | **`sfi-modbus-plc-trigger`** | **Modbus TCP coil rising edge → HAL frame** |
+| **`sfi-opcua-plc-trigger`** | **OPC-UA boolean rising edge → HAL frame (mock + client hook)** |
 
 ## V4L2 capture (real hardware)
 
@@ -73,6 +74,35 @@ SFI_MODBUS_ADDR=192.168.0.10:502 SFI_MODBUS_COIL=0 \
   cargo run --manifest-path domains/industrial-inspection/hal-ext/modbus-plc-trigger/Cargo.toml
 ```
 
+With a live V4L2 device, set `SFI_V4L2_DEVICE` (and optional `SFI_V4L2_WIDTH` / `HEIGHT`) so each coil rising edge captures from the camera instead of a synthetic pattern:
+
+```bash
+SFI_MODBUS_MOCK=1 SFI_V4L2_DEVICE=/dev/video42 \
+  cargo run --manifest-path domains/industrial-inspection/hal-ext/modbus-plc-trigger/Cargo.toml
+```
+
+## OPC-UA PLC trigger (scaffold)
+
+Polls an OPC-UA boolean node; **rising edge** publishes one HAL frame. Mock mode for CI (`SFI_OPCUA_MOCK=1`); real OPC-UA client plugs into `BoolReader` in `opcua-plc-trigger/src/opcua.rs`.
+
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `SFI_OPCUA_ENDPOINT` | `opc.tcp://127.0.0.1:4840` | Server endpoint |
+| `SFI_OPCUA_NODE` | `ns=2;i=2` | Boolean node id |
+| `SFI_OPCUA_MOCK` | `0` | `1` = mock rising edge for CI |
+| `SFI_OPCUA_POLL_MS` | `100` | Poll interval |
+
+Also supports `SFI_V4L2_DEVICE` for Modbus-style camera linkage.
+
+```bash
+SFI_OPCUA_MOCK=1 \
+  cargo run --manifest-path domains/industrial-inspection/hal-ext/opcua-plc-trigger/Cargo.toml
+```
+
+## GigE without vendor SDK
+
+Keep **`SFI_GIGE_MOCK=1`** (default). The real path is `SdkGigEBackend` in `gige-capture/src/gige.rs`, which returns a clear error until a Basler/Hikvision/GenICam SDK is linked. CI and lab workflows do not need hardware.
+
 ## PLC trigger protocol
 
 Connect to `$SFI_PLC_SOCKET` (default `$XDG_RUNTIME_DIR/sfi-plc.sock`):
@@ -118,4 +148,17 @@ cargo test -p sfi-core-bus shm_defect_e2e
 ./tools/scripts/v4l2-trigger-e2e.sh # V4L2 + TRIG socket
 ./tools/scripts/gige-capture-e2e.sh # mock GigE
 ./tools/scripts/modbus-plc-e2e.sh     # mock Modbus coil
+./tools/scripts/modbus-v4l2-e2e.sh    # Modbus + v4l2loopback (skips if no /dev/video42)
+./tools/scripts/opcua-plc-e2e.sh      # mock OPC-UA rising edge
+./tools/scripts/onnx-infer-e2e.sh     # tiny-defect.onnx → ai-infer → NG verdict
+```
+
+## ONNX inference (Phase 4)
+
+`plugins/ai-infer` loads `SFI_ONNX_MODEL` and runs a **reference stub** matching `tools/fixtures/models/tiny-defect.onnx` (GlobalAveragePool). Enable `--features onnx` when `ort` + system `libonnxruntime` are available.
+
+```bash
+SFI_ONNX_MODEL=tools/fixtures/models/tiny-defect.onnx \
+SFI_PROFILE=domains/industrial-inspection/profiles/line-infer.yaml \
+SFI_SCHEDULER=1 cargo run -p sfi-core-bus --bin sfi-bus
 ```

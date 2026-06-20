@@ -1,11 +1,9 @@
-mod capture;
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use capture::{device_available, Camera, CaptureConfig};
+use sfi_v4l2::{device_available, Camera, CaptureConfig};
 use sfi_core_bus::HalPublisher;
 use sfi_line_frame::{build_notify_layout, map_shm, Gray8Layout};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
