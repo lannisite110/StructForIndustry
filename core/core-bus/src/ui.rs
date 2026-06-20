@@ -42,7 +42,7 @@ pub async fn aoi_dashboard() -> Html<&'static str> {
     <div class="chart-box"><div class="label">Gray mean</div><canvas id="grayChart" width="640" height="120"></canvas></div>
   </div>
   <table>
-    <thead><tr><th>Frame</th><th>Verdict</th><th>Defects</th><th>Recipe</th><th>Time (ns)</th></tr></thead>
+    <thead><tr><th>Frame</th><th>Verdict</th><th>Defects</th><th>Recipe</th><th>Image</th><th>Time (ns)</th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
   <script>
@@ -105,7 +105,8 @@ pub async fn aoi_dashboard() -> Html<&'static str> {
       const tbody = document.getElementById('rows');
       tbody.innerHTML = (results || []).map(r =>
         `<tr><td>${r.frame_id}</td><td class="${r.verdict === 'OK' ? 'ok' : 'ng'}">${r.verdict}</td>` +
-        `<td>${r.defect_count}</td><td>${r.recipe_version}</td><td>${r.timestamp_ns}</td></tr>`
+        `<td>${r.defect_count}</td><td>${r.recipe_version}</td>` +
+        `<td>${r.image_path ?? r.shm_name ?? '-'}</td><td>${r.timestamp_ns}</td></tr>`
       ).join('');
     }
     async function applyThreshold() {

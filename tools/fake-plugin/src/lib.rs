@@ -40,6 +40,7 @@ pub fn library_filename() -> &'static str {
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref, clippy::manual_c_str_literals)]
 pub extern "C" fn sfi_init(host: *const sfi_host, out_info: *mut sfi_plugin_info) -> libc::c_int {
     if host.is_null() || out_info.is_null() {
         return -1;
@@ -76,6 +77,7 @@ pub extern "C" fn sfi_init(host: *const sfi_host, out_info: *mut sfi_plugin_info
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn sfi_process_task(
     task_msg: *const c_void,
     task_len: usize,

@@ -11,6 +11,7 @@ on:
       - "core/math-kernel/**"
       - "plugins/vision-2d/**"
       - "domains/industrial-inspection/**"
+      - "plugins/ai-infer/**"
       - "tools/fake-plugin/**"
       - "tools/sfi-cli/**"
       - "tools/scripts/**"
@@ -25,6 +26,7 @@ on:
       - "core/math-kernel/**"
       - "plugins/vision-2d/**"
       - "domains/industrial-inspection/**"
+      - "plugins/ai-infer/**"
       - "tools/fake-plugin/**"
       - "tools/sfi-cli/**"
       - "tools/scripts/**"
@@ -51,8 +53,25 @@ jobs:
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
 
+      - name: Cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
       - name: 1080p bench smoke
         run: ./tools/scripts/bench-1080p.sh
+
+      - name: 1080p bench report
+        run: |
+          chmod +x tools/scripts/bench-1080p-report.sh
+          ./tools/scripts/bench-1080p-report.sh bench-1080p.json
+
+      - uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+
+      - name: Zig build hal-rs
+        run: |
+          cd core/hal-rs
+          zig build
 
   julia-check:
     runs-on: ubuntu-latest

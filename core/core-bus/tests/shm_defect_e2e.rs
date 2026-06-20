@@ -34,12 +34,14 @@ async fn shm_defect_detect_pipeline_produces_ng() {
     let spc_path = dir.path().join("spc.jsonl");
     let spc_store = std::sync::Arc::new(SpcStore::open(&spc_path, 64).expect("spc store"));
 
-    let mut config = BusConfig::default();
-    config.socket_path = bus_socket.clone();
-    config.http_addr = "127.0.0.1:0".parse().unwrap();
-    config.scheduler = SchedulerConfig {
-        enabled: true,
-        vision_socket: vision_socket.clone(),
+    let config = BusConfig {
+        socket_path: bus_socket.clone(),
+        http_addr: "127.0.0.1:0".parse().unwrap(),
+        scheduler: SchedulerConfig {
+            enabled: true,
+            vision_socket: vision_socket.clone(),
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -87,7 +89,7 @@ async fn shm_defect_detect_pipeline_produces_ng() {
 
     timeout(Duration::from_secs(3), async {
         loop {
-            if bus.stats().snapshot().task_done_published >= 1 && spc_store.len() >= 1 {
+            if bus.stats().snapshot().task_done_published >= 1 && !spc_store.is_empty() {
                 break;
             }
             sleep(Duration::from_millis(10)).await;

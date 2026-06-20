@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: sfi-bus
+    static_configs:
+      - targets: ["aoi-demo:8080"]
+    metrics_path: /metrics

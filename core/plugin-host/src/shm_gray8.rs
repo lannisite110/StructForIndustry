@@ -11,10 +11,12 @@ use std::path::{Path, PathBuf};
 pub fn resolve_shm_path(shm_name: &str) -> PathBuf {
     if shm_name.starts_with("/dev/shm/") {
         PathBuf::from(shm_name)
-    } else if shm_name.starts_with('/') && shm_name[1..].contains('/') {
-        PathBuf::from(shm_name)
-    } else if shm_name.starts_with('/') {
-        PathBuf::from(format!("/dev/shm/{}", &shm_name[1..]))
+    } else if let Some(stripped) = shm_name.strip_prefix('/') {
+        if stripped.contains('/') {
+            PathBuf::from(shm_name)
+        } else {
+            PathBuf::from(format!("/dev/shm/{stripped}"))
+        }
     } else {
         PathBuf::from(format!("/dev/shm/{shm_name}"))
     }
@@ -41,6 +43,34 @@ pub fn gray_mean(pixels: &[u8]) -> f64 {
 
 pub fn bright_pixel_count(pixels: &[u8], threshold: u8) -> u32 {
     pixels.iter().filter(|&&p| p >= threshold).count() as u32
+}
+
+/// Extract ROI sub-rectangle from row-major gray8 buffer. Returns (pixels, w, h).
+#[allow(clippy::too_many_arguments)]
+pub fn crop_roi(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    stride: u32,
+    roi_x: u32,
+    roi_y: u32,
+    roi_w: u32,
+    roi_h: u32,
+) -> (Vec<u8>, u32, u32) {
+    let x0 = roi_x.min(width);
+    let y0 = roi_y.min(height);
+    let w = roi_w.min(width.saturating_sub(x0)).max(1);
+    let h = roi_h.min(height.saturating_sub(y0)).max(1);
+    let mut out = Vec::with_capacity((w * h) as usize);
+    for row in 0..h {
+        let y = y0 + row;
+        let start = (y * stride + x0) as usize;
+        let end = start + w as usize;
+        if end <= pixels.len() {
+            out.extend_from_slice(&pixels[start..end]);
+        }
+    }
+    (out, w, h)
 }
 
 pub fn write_test_pattern(

@@ -1,0 +1,23 @@
+services:
+  aoi-demo:
+    build:
+      context: ../../../..
+      dockerfile: domains/industrial-inspection/examples/aoi-line-demo/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - sfi-data:/var/lib/sfi
+    environment:
+      SFI_DATA_DIR: /var/lib/sfi
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - aoi-demo
+
+volumes:
+  sfi-data:

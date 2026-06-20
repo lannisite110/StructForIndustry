@@ -7,7 +7,7 @@ use tokio::net::{UnixListener, UnixStream};
 
 use crate::mock_vision::encode_framed_response;
 use crate::plugin_wire::{BBox, Detection, Metric, TaskRequest, TaskResponse};
-use crate::shm_gray8::{bright_pixel_count, gray_mean, read_gray8};
+use crate::shm_gray8::{bright_pixel_count, crop_roi, gray_mean, read_gray8};
 
 pub async fn run_mock_defect_detect_sidecar(socket_path: &Path) -> std::io::Result<()> {
     if socket_path.exists() {
@@ -68,8 +68,9 @@ pub fn mock_defect_response(req: &TaskRequest) -> TaskResponse {
 }
 
 fn response_from_pixels(req: &TaskRequest, pixels: &[u8], threshold: u8) -> TaskResponse {
-    let gmean = gray_mean(pixels);
-    let bright = bright_pixel_count(pixels, threshold);
+    let (work, w, h) = apply_roi(req, pixels);
+    let gmean = gray_mean(&work);
+    let bright = bright_pixel_count(&work, threshold);
     let has_defect = bright > 0;
 
     TaskResponse {
@@ -82,10 +83,10 @@ fn response_from_pixels(req: &TaskRequest, pixels: &[u8], threshold: u8) -> Task
                 label: "surface_defect".into(),
                 score: 0.9,
                 bbox: BBox {
-                    x: req.frame.width as f32 * 0.25,
-                    y: req.frame.height as f32 * 0.25,
-                    width: req.frame.width as f32 * 0.5,
-                    height: req.frame.height as f32 * 0.5,
+                    x: w as f32 * 0.25,
+                    y: h as f32 * 0.25,
+                    width: w as f32 * 0.5,
+                    height: h as f32 * 0.5,
                 },
             }]
         } else {
@@ -109,6 +110,39 @@ fn response_from_pixels(req: &TaskRequest, pixels: &[u8], threshold: u8) -> Task
             },
         ],
     }
+}
+
+fn apply_roi(req: &TaskRequest, pixels: &[u8]) -> (Vec<u8>, u32, u32) {
+    let roi = req.params.get("roi");
+    let rx = roi
+        .and_then(|r| r.get("x"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let ry = roi
+        .and_then(|r| r.get("y"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let rw = roi
+        .and_then(|r| r.get("width"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(req.frame.width as u64) as u32;
+    let rh = roi
+        .and_then(|r| r.get("height"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(req.frame.height as u64) as u32;
+    if rx == 0 && ry == 0 && rw == req.frame.width && rh == req.frame.height {
+        return (pixels.to_vec(), req.frame.width, req.frame.height);
+    }
+    crop_roi(
+        pixels,
+        req.frame.width,
+        req.frame.height,
+        req.frame.stride,
+        rx,
+        ry,
+        rw,
+        rh,
+    )
 }
 
 fn fallback_response(req: &TaskRequest, threshold: u8) -> TaskResponse {

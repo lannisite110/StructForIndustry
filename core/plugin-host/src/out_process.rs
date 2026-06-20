@@ -21,6 +21,7 @@ pub enum WireError {
     Capnp(#[from] capnp::Error),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn task_request_from_hal(
     task_id: u64,
     task_type: &str,

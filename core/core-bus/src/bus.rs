@@ -67,7 +67,14 @@ pub struct CoreBus {
     profile: Option<Arc<ProfileStore>>,
     spc: SpcEngine,
     spc_store: Option<Arc<SpcStore>>,
+    frame_archive: Option<Arc<crate::frame_store::FrameArchive>>,
     scheduler: Option<Arc<crate::scheduler::TaskScheduler>>,
+}
+
+impl Default for CoreBus {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CoreBus {
@@ -82,8 +89,20 @@ impl CoreBus {
             profile: None,
             spc: SpcEngine::default(),
             spc_store: None,
+            frame_archive: None,
             scheduler: None,
         }
+    }
+
+    pub fn with_frame_archive(self, archive: Arc<crate::frame_store::FrameArchive>) -> Self {
+        Self {
+            frame_archive: Some(archive),
+            ..self
+        }
+    }
+
+    pub fn frame_archive(&self) -> Option<Arc<crate::frame_store::FrameArchive>> {
+        self.frame_archive.clone()
     }
 
     pub fn with_spc_store(self, store: Arc<SpcStore>) -> Self {

@@ -171,6 +171,10 @@ pub struct DispatchParams {
     pub mes_endpoint: String,
     pub mes_batch_id: String,
     pub spc_window: u32,
+    pub roi_x: u32,
+    pub roi_y: u32,
+    pub roi_width: u32,
+    pub roi_height: u32,
 }
 
 impl From<&LineProfile> for DispatchParams {
@@ -184,6 +188,10 @@ impl From<&LineProfile> for DispatchParams {
             mes_endpoint: p.mes.endpoint.clone(),
             mes_batch_id: p.mes.batch_id.clone(),
             spc_window: p.spc.window_size,
+            roi_x: p.vision.roi.x,
+            roi_y: p.vision.roi.y,
+            roi_width: p.vision.roi.width,
+            roi_height: p.vision.roi.height,
         }
     }
 }

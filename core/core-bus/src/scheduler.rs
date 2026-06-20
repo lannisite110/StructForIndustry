@@ -45,15 +45,33 @@ impl Default for SchedulerConfig {
 impl SchedulerConfig {
     pub fn apply_profile(&mut self, profile: &ProfileStore) {
         let p = profile.params();
-        self.task_type = p.task_type;
         self.threshold = p.threshold;
-        self.plugin_name = p.plugin_name;
+        self.plugin_name = p.plugin_name.clone();
         if profile.params().recipe_version != self.plugin_version {
             self.plugin_version = profile.params().recipe_version.clone();
         }
-        if !profile.params().mes_enabled {
-            // keep socket defaults
+        self.task_type = resolve_task_type(&p.plugin_name, &p.task_type);
+        if p.plugin_name == "ai-infer" {
+            self.vision_socket = std::env::var("SFI_INFER_SOCKET")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| infer_socket_default());
         }
+    }
+}
+
+fn resolve_task_type(plugin: &str, profile_task: &str) -> String {
+    if plugin == "ai-infer" {
+        "infer.onnx".into()
+    } else {
+        profile_task.to_string()
+    }
+}
+
+fn infer_socket_default() -> PathBuf {
+    if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
+        PathBuf::from(runtime).join("sfi-infer.sock")
+    } else {
+        PathBuf::from("/tmp/sfi-infer.sock")
     }
 }
 
@@ -143,6 +161,10 @@ fn resolve_params(config: &SchedulerConfig, bus: &CoreBus) -> DispatchParams {
             mes_endpoint: String::new(),
             mes_batch_id: "line-1".into(),
             spc_window: 32,
+            roi_x: 0,
+            roi_y: 0,
+            roi_width: 1920,
+            roi_height: 1080,
         }
     }
 }
@@ -168,7 +190,15 @@ async fn dispatch_one(
         notify.stride,
         notify.shm_name_str(),
         notify.byte_length,
-        serde_json::json!({ "threshold": params.threshold }),
+        serde_json::json!({
+            "threshold": params.threshold,
+            "roi": {
+                "x": params.roi_x,
+                "y": params.roi_y,
+                "width": params.roi_width,
+                "height": params.roi_height,
+            }
+        }),
     );
 
     info!(
@@ -195,7 +225,16 @@ async fn dispatch_one(
     }
     bus.persist_spc(&snapshot);
 
-    let report = InspectionReport::from_task(notify.frame_id, &resp, &params, published_at);
+    let image_path = bus.frame_archive().and_then(|a| a.archive(notify));
+
+    let report = InspectionReport::from_task(
+        notify.frame_id,
+        &resp,
+        &params,
+        published_at,
+        notify.shm_name_str(),
+        image_path,
+    );
     bus.results().push(report.clone());
 
     if params.mes_enabled && !params.mes_endpoint.is_empty() {

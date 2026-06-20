@@ -76,6 +76,10 @@ impl SpcStore {
     pub fn len(&self) -> usize {
         self.inner.lock().expect("spc store lock").trend.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 fn load_tail(path: &Path, capacity: usize) -> Result<Vec<SpcSnapshot>, SpcStoreError> {

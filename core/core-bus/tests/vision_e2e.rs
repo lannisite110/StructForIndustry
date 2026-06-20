@@ -21,16 +21,18 @@ async fn frame_triggers_vision_task_and_task_done() {
         let _ = run_mock_defect_detect_sidecar(&vision_path).await;
     });
 
-    let mut config = BusConfig::default();
-    config.socket_path = bus_socket.clone();
-    config.http_addr = "127.0.0.1:0".parse().unwrap();
-    config.scheduler = SchedulerConfig {
-        enabled: true,
-        vision_socket: vision_socket.clone(),
-        task_type: "vision.detect.defect".into(),
-        threshold: 128,
-        plugin_name: "vision-2d".into(),
-        plugin_version: "0.0.1".into(),
+    let config = BusConfig {
+        socket_path: bus_socket.clone(),
+        http_addr: "127.0.0.1:0".parse().unwrap(),
+        scheduler: SchedulerConfig {
+            enabled: true,
+            vision_socket: vision_socket.clone(),
+            task_type: "vision.detect.defect".into(),
+            threshold: 128,
+            plugin_name: "vision-2d".into(),
+            plugin_version: "0.0.1".into(),
+        },
+        ..Default::default()
     };
 
     let scheduler = TaskScheduler::new(config.scheduler.clone());

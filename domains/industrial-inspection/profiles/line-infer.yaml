@@ -1,0 +1,34 @@
+# Line profile using ai-infer mock sidecar (Phase 4)
+name: line-infer
+domain: industrial-inspection
+version: 0.0.1
+
+scheduler:
+  mode: realtime
+  dropStaleFrames: true
+  maxQueueDepth: 2
+  defaultDeadlineMs: 50
+  autoVision: true
+  taskType: infer.onnx
+
+vision:
+  plugin: ai-infer
+  threshold: 128
+  roi:
+    x: 0
+    y: 0
+    width: 1920
+    height: 1080
+
+spc:
+  windowSize: 32
+  persist: true
+  persistCapacity: 4096
+
+mes:
+  enabled: false
+
+compliance:
+  auditConfigChanges: true
+  retainResultsDays: 90
+  policy: compliance/audit-policy.yaml

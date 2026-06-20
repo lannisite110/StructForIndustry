@@ -23,7 +23,11 @@ impl AuditLog {
             }
         }
         if !path.exists() {
-            OpenOptions::new().create(true).write(true).open(&path)?;
+            OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(&path)?;
         }
         Ok(Self {
             path,

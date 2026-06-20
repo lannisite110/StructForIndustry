@@ -42,12 +42,34 @@ function mmap_gray8(shm_name::AbstractString, byte_length::Integer, offset::Inte
     end
 end
 
+function crop_roi_pixels(pixels, width, height, roi)
+    x = Int(get(roi, "x", 0))
+    y = Int(get(roi, "y", 0))
+    w = Int(get(roi, "width", width))
+    h = Int(get(roi, "height", height))
+    x = clamp(x, 0, width - 1)
+    y = clamp(y, 0, height - 1)
+    w = min(w, width - x)
+    h = min(h, height - y)
+    out = UInt8[]
+    for row in 0:(h - 1)
+        yy = y + row
+        start = yy * width + x
+        append!(out, pixels[(start + 1):(start + w)])
+    end
+    return out, w, h
+end
+
 function process_task(req)
     threshold = get(get(req, :params, Dict()), "threshold", 128)
     frame = req.frame
     pixels = mmap_gray8(frame.shm_name, frame.byte_length, get(frame, :offset, 0))
     width = Int(frame.width)
     height = Int(frame.height)
+    roi = get(get(req, :params, Dict()), "roi", nothing)
+    if roi !== nothing
+        pixels, width, height = crop_roi_pixels(pixels, width, height, roi)
+    end
 
     components, bright, gmean, bbox = detect_surface_defects(
         pixels, width, height; threshold=threshold,

@@ -67,12 +67,14 @@ async fn mes_receives_ng_after_defect_detection() {
     let profile = Arc::new(ProfileStore::load(&profile_path).expect("profile"));
     profile.configure_mes(true, Some(mes_endpoint), None);
 
-    let mut config = BusConfig::default();
-    config.socket_path = bus_socket.clone();
-    config.http_addr = "127.0.0.1:0".parse().unwrap();
-    config.scheduler = SchedulerConfig {
-        enabled: true,
-        vision_socket: vision_socket.clone(),
+    let config = BusConfig {
+        socket_path: bus_socket.clone(),
+        http_addr: "127.0.0.1:0".parse().unwrap(),
+        scheduler: SchedulerConfig {
+            enabled: true,
+            vision_socket: vision_socket.clone(),
+            ..Default::default()
+        },
         ..Default::default()
     };
 

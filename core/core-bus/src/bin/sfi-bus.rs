@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use sfi_core_bus::{
-    default_profile_path, default_store_path, run_hal_listener, run_http_server, BusConfig,
-    CoreBus, ProfileStore, SpcStore, TaskScheduler,
+    default_profile_path, default_store_path, run_hal_listener, run_http_server,
+    touch_policy_marker, BusConfig, CoreBus, FrameArchive, ProfileStore, SpcStore, TaskScheduler,
 };
 use sfi_plugin_host::{plugin_health_event_bytes, OutProcessSpec, PluginSupervisor};
 use tokio::sync::mpsc;
@@ -98,6 +98,18 @@ async fn main() -> std::io::Result<()> {
                 }
                 Err(err) => tracing::warn!(error = %err, "SPC store init failed"),
             }
+        }
+        if p.snapshot().compliance.retain_results_days > 0 {
+            match FrameArchive::from_compliance(&p.snapshot().compliance) {
+                Ok(archive) => {
+                    tracing::info!(dir = %archive.dir().display(), "frame archive ready");
+                    bus = bus.with_frame_archive(Arc::new(archive));
+                }
+                Err(err) => tracing::warn!(error = %err, "frame archive init failed"),
+            }
+        }
+        if let Some(ref policy) = p.snapshot().compliance.policy {
+            let _ = touch_policy_marker(policy);
         }
         p.clone().spawn_hot_reload();
     }

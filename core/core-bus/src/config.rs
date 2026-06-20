@@ -98,6 +98,7 @@ pub async fn run_http_server(config: &BusConfig, bus: &CoreBus) -> std::io::Resu
         .route("/results/last", get(last_result))
         .route("/spc/metrics", get(spc_metrics))
         .route("/spc/trend", get(spc_trend))
+        .route("/metrics", get(prometheus_metrics))
         .route("/", get(crate::ui::aoi_dashboard))
         .with_state(state);
 
@@ -190,4 +191,11 @@ async fn spc_trend(
             .map(|s| s.trend(q.limit))
             .unwrap_or_default(),
     )
+}
+
+async fn prometheus_metrics(State(state): State<HttpState>) -> (axum::http::StatusCode, String) {
+    let snap = state.bus_stats.snapshot();
+    let sched = state.scheduler_stats.as_ref().map(|s| s.snapshot());
+    let body = crate::metrics::render_prometheus(&snap, sched.as_ref());
+    (axum::http::StatusCode::OK, body)
 }

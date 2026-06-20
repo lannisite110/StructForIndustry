@@ -14,21 +14,19 @@ async fn synthetic_hal_publishes_frame_new() {
     let dir = tempdir().unwrap();
     let socket = dir.path().join("sfi-bus.sock");
 
-    let mut config = BusConfig::default();
-    config.socket_path = socket.clone();
-    config.http_addr = "127.0.0.1:0".parse().unwrap();
+    let config = BusConfig {
+        socket_path: socket.clone(),
+        http_addr: "127.0.0.1:0".parse().unwrap(),
+        ..Default::default()
+    };
 
     let bus = CoreBus::new();
     let stats = bus.stats();
 
-    let socket_path = socket.clone();
+    let listener_cfg = config.clone();
     let bus_for_listener = bus.clone();
     let listener = tokio::spawn(async move {
-        let cfg = BusConfig {
-            socket_path,
-            ..Default::default()
-        };
-        let _ = run_hal_listener(&cfg, bus_for_listener).await;
+        let _ = run_hal_listener(&listener_cfg, bus_for_listener).await;
     });
 
     // Wait until socket exists

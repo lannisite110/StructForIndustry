@@ -21,10 +21,21 @@ fn infer_response(req: &TaskRequest) -> TaskResponse {
         gray_mean = shm_gray8::gray_mean(&pixels);
     }
 
+    let model_path = std::env::var("SFI_ONNX_MODEL").ok();
+    let uses_onnx = model_path
+        .as_ref()
+        .map(|p| std::path::Path::new(p).exists())
+        .unwrap_or(false);
+    let message = if uses_onnx {
+        "mock ai-infer (onnx path set)"
+    } else {
+        "mock ai-infer (onnx)"
+    };
+
     TaskResponse {
         task_id: req.task_id,
         status: "ok".into(),
-        message: "mock ai-infer (onnx)".into(),
+        message: message.into(),
         detections: vec![Detection {
             class_id: 99,
             label: "ai_defect".into(),
@@ -49,8 +60,12 @@ fn infer_response(req: &TaskRequest) -> TaskResponse {
             },
             Metric {
                 name: "model".into(),
-                value: 0.0,
-                unit: "mock-onnx-v1".into(),
+                value: if uses_onnx { 1.0 } else { 0.0 },
+                unit: if uses_onnx {
+                    model_path.unwrap_or_default()
+                } else {
+                    "mock-onnx-v1".into()
+                },
             },
         ],
     }

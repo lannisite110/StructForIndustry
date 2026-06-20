@@ -13,6 +13,9 @@ pub struct InspectionReport {
     pub defect_count: u32,
     pub recipe_version: String,
     pub timestamp_ns: u64,
+    pub shm_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_path: Option<String>,
 }
 
 impl InspectionReport {
@@ -21,6 +24,8 @@ impl InspectionReport {
         resp: &TaskResponse,
         params: &DispatchParams,
         timestamp_ns: u64,
+        shm_name: &str,
+        image_path: Option<String>,
     ) -> Self {
         let defect_count = resp.detections.len() as u32;
         let verdict = if defect_count > 0 || resp.status == "error" {
@@ -35,6 +40,8 @@ impl InspectionReport {
             defect_count,
             recipe_version: params.recipe_version.clone(),
             timestamp_ns,
+            shm_name: shm_name.to_string(),
+            image_path,
         }
     }
 }
@@ -91,8 +98,12 @@ mod tests {
             mes_endpoint: String::new(),
             mes_batch_id: "b1".into(),
             spc_window: 32,
+            roi_x: 0,
+            roi_y: 0,
+            roi_width: 1920,
+            roi_height: 1080,
         };
-        let r = InspectionReport::from_task(42, &resp, &params, 100);
+        let r = InspectionReport::from_task(42, &resp, &params, 100, "/sfi.test", None);
         assert_eq!(r.verdict, "NG");
         assert_eq!(r.defect_count, 1);
     }

@@ -36,12 +36,14 @@ async fn bench_1080p_pipeline_under_budget() {
     let profile_path = root.join("domains/industrial-inspection/profiles/line-realtime.yaml");
     let profile = ProfileStore::load(&profile_path).expect("profile");
 
-    let mut config = BusConfig::default();
-    config.socket_path = bus_socket.clone();
-    config.http_addr = "127.0.0.1:0".parse().unwrap();
-    config.scheduler = SchedulerConfig {
-        enabled: true,
-        vision_socket: vision_socket.clone(),
+    let config = BusConfig {
+        socket_path: bus_socket.clone(),
+        http_addr: "127.0.0.1:0".parse().unwrap(),
+        scheduler: SchedulerConfig {
+            enabled: true,
+            vision_socket: vision_socket.clone(),
+            ..Default::default()
+        },
         ..Default::default()
     };
 
