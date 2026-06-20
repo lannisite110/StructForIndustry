@@ -2,7 +2,7 @@ name: contracts
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "core/contracts/**"
       - "core/plugin-host/**"
@@ -47,6 +47,12 @@ jobs:
 
       - name: Cargo test (workspace)
         run: cargo test --workspace --all-targets
+
+      - name: Cargo fmt check
+        run: cargo fmt --all -- --check
+
+      - name: 1080p bench smoke
+        run: ./tools/scripts/bench-1080p.sh
 
   julia-check:
     runs-on: ubuntu-latest

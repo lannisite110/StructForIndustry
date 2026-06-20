@@ -40,10 +40,7 @@ pub fn library_filename() -> &'static str {
 }
 
 #[no_mangle]
-pub extern "C" fn sfi_init(
-    host: *const sfi_host,
-    out_info: *mut sfi_plugin_info,
-) -> libc::c_int {
+pub extern "C" fn sfi_init(host: *const sfi_host, out_info: *mut sfi_plugin_info) -> libc::c_int {
     if host.is_null() || out_info.is_null() {
         return -1;
     }
@@ -107,7 +104,12 @@ pub extern "C" fn sfi_process_task(
     };
 
     let task_id = task_reader.get_id();
-    let frame_id = match task_reader.get_input().expect("input").which().expect("which") {
+    let frame_id = match task_reader
+        .get_input()
+        .expect("input")
+        .which()
+        .expect("which")
+    {
         task_input::WhichReader::FrameRef(fr) => fr.expect("frame_ref").get_id(),
         task_input::WhichReader::Frame(f) => f.expect("frame").get_id(),
         _ => 0,
@@ -156,8 +158,8 @@ pub extern "C" fn sfi_shutdown() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ptr;
     use sfi_abi::{SFI_API_VERSION_MAJOR, SFI_API_VERSION_MINOR};
+    use std::ptr;
 
     extern "C" fn noop_log(_msg: *const c_char) {}
 
@@ -207,7 +209,10 @@ mod tests {
             serialize::read_message(&result_bytes[..result_len], ReaderOptions::new()).unwrap();
         let result_reader = reader.get_root::<result_capnp::result::Reader>().unwrap();
         assert_eq!(result_reader.get_task_id(), 7);
-        assert_eq!(result_reader.get_status().expect("status"), ResultStatus::Ok);
+        assert_eq!(
+            result_reader.get_status().expect("status"),
+            ResultStatus::Ok
+        );
 
         sfi_shutdown();
     }

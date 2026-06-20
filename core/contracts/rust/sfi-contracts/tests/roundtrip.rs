@@ -16,23 +16,24 @@ fn roundtrip_task_message() {
     task_builder.set_id(42);
     task_builder.set_type("vision.detect.defect");
     task_builder.set_correlation_id("corr-1");
-    task_builder
-        .init_input()
-        .init_frame_ref()
-        .set_id(1001);
+    task_builder.init_input().init_frame_ref().set_id(1001);
 
     let mut bytes = Vec::new();
     serialize::write_message(&mut bytes, &message).expect("write task");
 
-    let reader =
-        serialize::read_message(&bytes[..], ReaderOptions::new()).expect("read task");
+    let reader = serialize::read_message(&bytes[..], ReaderOptions::new()).expect("read task");
     let task_reader = reader.get_root::<task::Reader>().expect("root");
     assert_eq!(task_reader.get_id(), 42);
     assert_eq!(
         task_reader.get_type().expect("type"),
         "vision.detect.defect"
     );
-    match task_reader.get_input().expect("input").which().expect("which") {
+    match task_reader
+        .get_input()
+        .expect("input")
+        .which()
+        .expect("which")
+    {
         task_input::WhichReader::FrameRef(fr) => assert_eq!(fr.expect("fr").get_id(), 1001),
         other => panic!("unexpected input: {:?}", std::mem::discriminant(&other)),
     }

@@ -72,9 +72,17 @@ fn loads_fake_plugin_and_returns_detection() {
     let result_reader = reader.get_root::<result_capnp::result::Reader>().unwrap();
 
     assert_eq!(result_reader.get_task_id(), 42);
-    assert_eq!(result_reader.get_status().expect("status"), ResultStatus::Ok);
+    assert_eq!(
+        result_reader.get_status().expect("status"),
+        ResultStatus::Ok
+    );
 
-    let detections = match result_reader.get_payload().expect("payload").which().expect("which") {
+    let detections = match result_reader
+        .get_payload()
+        .expect("payload")
+        .which()
+        .expect("which")
+    {
         result_payload::WhichReader::Detections(d) => d.expect("detections"),
         other => panic!("unexpected payload: {:?}", std::mem::discriminant(&other)),
     };

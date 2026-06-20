@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name = "sfi-ai-infer"
+version = "0.0.1"
+description = "Mock ONNX inference sidecar (Phase 4 scaffold)"
+edition = "2021"
+license = "Apache-2.0"
+
+[[bin]]
+name = "sfi-ai-infer"
+path = "src/main.rs"
+
+[dependencies]
+sfi-plugin-host = { path = "../../core/plugin-host" }
+serde_json = "1"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

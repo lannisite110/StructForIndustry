@@ -43,7 +43,12 @@ pub fn bright_pixel_count(pixels: &[u8], threshold: u8) -> u32 {
     pixels.iter().filter(|&&p| p >= threshold).count() as u32
 }
 
-pub fn write_test_pattern(path: &Path, width: u32, height: u32, inject_defect: bool) -> io::Result<()> {
+pub fn write_test_pattern(
+    path: &Path,
+    width: u32,
+    height: u32,
+    inject_defect: bool,
+) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;

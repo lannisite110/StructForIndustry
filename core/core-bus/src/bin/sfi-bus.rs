@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use sfi_core_bus::{
-    default_profile_path, default_store_path, BusConfig, CoreBus, ProfileStore, SpcStore,
-    TaskScheduler, run_hal_listener, run_http_server,
+    default_profile_path, default_store_path, run_hal_listener, run_http_server, BusConfig,
+    CoreBus, ProfileStore, SpcStore, TaskScheduler,
 };
-use sfi_plugin_host::{OutProcessSpec, PluginSupervisor, plugin_health_event_bytes};
+use sfi_plugin_host::{plugin_health_event_bytes, OutProcessSpec, PluginSupervisor};
 use tokio::sync::mpsc;
 use tokio::try_join;
 use tracing_subscriber::EnvFilter;
@@ -25,7 +25,7 @@ fn load_profile(config: &mut BusConfig) -> Option<Arc<ProfileStore>> {
         .profile_path
         .clone()
         .unwrap_or_else(|| default_profile_path(&repo_root()));
-    match ProfileStore::load(&path) {
+    match ProfileStore::load_with_audit(&path) {
         Ok(store) => {
             let store = Arc::new(store);
             config.scheduler.apply_profile(&store);

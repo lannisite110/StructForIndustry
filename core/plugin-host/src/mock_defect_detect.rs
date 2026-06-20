@@ -47,9 +47,8 @@ async fn handle_connection(mut stream: UnixStream) -> std::io::Result<()> {
             }
         };
         let resp = mock_defect_response(&req);
-        let framed = encode_framed_response(&resp).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-        })?;
+        let framed = encode_framed_response(&resp)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
         stream.write_all(&framed).await?;
     }
 }
@@ -61,9 +60,7 @@ pub fn mock_defect_response(req: &TaskRequest) -> TaskResponse {
         .and_then(|v| v.as_u64())
         .unwrap_or(128) as u8;
 
-    if let Ok(pixels) =
-        read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset)
-    {
+    if let Ok(pixels) = read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset) {
         return response_from_pixels(req, &pixels, threshold);
     }
 

@@ -53,7 +53,10 @@ impl SpcStore {
     pub fn append(&self, snapshot: &SpcSnapshot) -> Result<(), SpcStoreError> {
         let line = serde_json::to_string(snapshot)?;
         {
-            let mut file = OpenOptions::new().create(true).append(true).open(&self.path)?;
+            let mut file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.path)?;
             writeln!(file, "{line}")?;
         }
         let mut inner = self.inner.lock().expect("spc store lock");

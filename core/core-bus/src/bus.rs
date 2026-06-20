@@ -183,7 +183,11 @@ impl CoreBus {
             .stats
             .plugin_health_published
             .fetch_add(1, Ordering::Relaxed);
-        tracing::info!(topic = TOPIC_PLUGIN_HEALTH, plugin = plugin_name, "published health");
+        tracing::info!(
+            topic = TOPIC_PLUGIN_HEALTH,
+            plugin = plugin_name,
+            "published health"
+        );
         self.emit(TOPIC_PLUGIN_HEALTH, bytes);
     }
 

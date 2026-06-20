@@ -3,8 +3,8 @@
 use std::time::Duration;
 
 use sfi_core_bus::{
-    BusConfig, CoreBus, HalFrameNotify, HalPublisher, POOL_ID_LEN, SHM_NAME_LEN, SOURCE_ID_LEN,
-    SchedulerConfig, TaskScheduler, TOPIC_TASK_DONE, run_hal_listener,
+    run_hal_listener, BusConfig, CoreBus, HalFrameNotify, HalPublisher, SchedulerConfig,
+    TaskScheduler, POOL_ID_LEN, SHM_NAME_LEN, SOURCE_ID_LEN, TOPIC_TASK_DONE,
 };
 use sfi_plugin_host::run_mock_defect_detect_sidecar;
 use tempfile::tempdir;
@@ -54,7 +54,9 @@ async fn frame_triggers_vision_task_and_task_done() {
     assert!(bus_socket.exists());
     assert!(vision_socket.exists());
 
-    let mut publisher = HalPublisher::connect(&bus_socket).await.expect("connect hal");
+    let mut publisher = HalPublisher::connect(&bus_socket)
+        .await
+        .expect("connect hal");
 
     let mut notify = HalFrameNotify {
         frame_id: 200,
@@ -103,11 +105,9 @@ async fn frame_triggers_vision_task_and_task_done() {
     .await
     .expect("timeout waiting for task.done event");
 
-    let reader = capnp::serialize::read_message(
-        &got_task_done[..],
-        capnp::message::ReaderOptions::new(),
-    )
-    .expect("parse ResultEvent");
+    let reader =
+        capnp::serialize::read_message(&got_task_done[..], capnp::message::ReaderOptions::new())
+            .expect("parse ResultEvent");
     let event = reader
         .get_root::<sfi_contracts::result_capnp::result_event::Reader>()
         .expect("root");

@@ -39,10 +39,7 @@ impl InspectionReport {
     }
 }
 
-pub async fn post_mes_report(
-    endpoint: &str,
-    report: &InspectionReport,
-) -> Result<(), MesError> {
+pub async fn post_mes_report(endpoint: &str, report: &InspectionReport) -> Result<(), MesError> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()?;

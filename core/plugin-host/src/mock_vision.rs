@@ -45,9 +45,8 @@ async fn handle_connection(mut stream: UnixStream) -> std::io::Result<()> {
             }
         };
         let resp = mock_response(&req);
-        let framed = encode_framed_response(&resp).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-        })?;
+        let framed = encode_framed_response(&resp)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
         stream.write_all(&framed).await?;
     }
 }

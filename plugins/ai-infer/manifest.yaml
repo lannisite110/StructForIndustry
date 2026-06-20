@@ -1,0 +1,9 @@
+id: ai-infer
+name: AI Inference (mock ONNX)
+version: 0.0.1
+apiVersion: 0
+language: rust
+capabilities:
+  - infer.onnx
+  - infer.mock
+socketEnv: SFI_INFER_SOCKET

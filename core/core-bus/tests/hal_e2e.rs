@@ -3,8 +3,8 @@
 use std::time::Duration;
 
 use sfi_core_bus::{
-    BusConfig, CoreBus, HalFrameNotify, HalPublisher, NOTIFY_SIZE, POOL_ID_LEN, SHM_NAME_LEN,
-    SOURCE_ID_LEN, run_hal_listener,
+    run_hal_listener, BusConfig, CoreBus, HalFrameNotify, HalPublisher, NOTIFY_SIZE, POOL_ID_LEN,
+    SHM_NAME_LEN, SOURCE_ID_LEN,
 };
 use tempfile::tempdir;
 use tokio::time::{sleep, timeout};

@@ -7,9 +7,8 @@ use axum::routing::post;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use sfi_core_bus::{
-    BusConfig, CoreBus, HalFrameNotify, HalPublisher, POOL_ID_LEN, ProfileStore, SHM_NAME_LEN,
-    SOURCE_ID_LEN, SchedulerConfig, TaskScheduler, TOPIC_SPC_METRICS,
-    run_hal_listener,
+    run_hal_listener, BusConfig, CoreBus, HalFrameNotify, HalPublisher, ProfileStore,
+    SchedulerConfig, TaskScheduler, POOL_ID_LEN, SHM_NAME_LEN, SOURCE_ID_LEN, TOPIC_SPC_METRICS,
 };
 use sfi_plugin_host::run_mock_defect_detect_sidecar;
 use tempfile::tempdir;

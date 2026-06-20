@@ -29,6 +29,8 @@ pub struct LineProfile {
     pub spc: SpcSection,
     #[serde(default)]
     pub mes: MesSection,
+    #[serde(default)]
+    pub compliance: ComplianceSection,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
@@ -141,6 +143,23 @@ fn default_spc_window() -> u32 {
     32
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ComplianceSection {
+    #[serde(default)]
+    pub audit_config_changes: bool,
+    #[serde(default = "default_ninety")]
+    pub retain_results_days: u32,
+    #[serde(default)]
+    pub policy: Option<String>,
+    #[serde(default)]
+    pub audit_log_path: Option<String>,
+}
+
+fn default_ninety() -> u32 {
+    90
+}
+
 /// Runtime view used by scheduler (profile + overrides).
 #[derive(Debug, Clone)]
 pub struct DispatchParams {
@@ -173,6 +192,7 @@ impl From<&LineProfile> for DispatchParams {
 pub struct ProfileStore {
     path: PathBuf,
     profile: Arc<RwLock<LineProfile>>,
+    audit: Option<Arc<crate::audit::AuditLog>>,
 }
 
 impl ProfileStore {
@@ -183,7 +203,25 @@ impl ProfileStore {
         Ok(Self {
             path,
             profile: Arc::new(RwLock::new(profile)),
+            audit: None,
         })
+    }
+
+    pub fn load_with_audit(path: impl AsRef<Path>) -> Result<Self, ProfileError> {
+        let store = Self::load(path)?;
+        if store.snapshot().compliance.audit_config_changes {
+            let audit = Arc::new(crate::audit::AuditLog::from_compliance(
+                &store.snapshot().compliance,
+            )?);
+            Ok(store.with_audit(audit))
+        } else {
+            Ok(store)
+        }
+    }
+
+    pub fn with_audit(mut self, audit: Arc<crate::audit::AuditLog>) -> Self {
+        self.audit = Some(audit);
+        self
     }
 
     pub fn path(&self) -> &Path {
@@ -199,11 +237,11 @@ impl ProfileStore {
     }
 
     pub fn set_threshold(&self, threshold: u64) {
-        self.profile
-            .write()
-            .expect("profile lock")
-            .vision
-            .threshold = threshold;
+        let prev = self.profile.read().expect("profile lock").vision.threshold;
+        self.profile.write().expect("profile lock").vision.threshold = threshold;
+        if let Some(audit) = &self.audit {
+            audit.record("vision.threshold.patch", &format!("{prev} -> {threshold}"));
+        }
     }
 
     pub fn configure_mes(&self, enabled: bool, endpoint: Option<String>, batch_id: Option<String>) {
@@ -220,9 +258,19 @@ impl ProfileStore {
     pub fn reload_from_disk(&self) -> Result<bool, ProfileError> {
         let text = std::fs::read_to_string(&self.path)?;
         let next: LineProfile = serde_yaml::from_str(&text)?;
-        let changed = next != *self.profile.read().expect("profile lock");
+        let prev = self.profile.read().expect("profile lock").clone();
+        let changed = next != prev;
         if changed {
-            *self.profile.write().expect("profile lock") = next;
+            *self.profile.write().expect("profile lock") = next.clone();
+            if let Some(audit) = &self.audit {
+                audit.record(
+                    "profile.reload",
+                    &format!(
+                        "{} v{} threshold {} -> {}",
+                        prev.name, prev.version, prev.vision.threshold, next.vision.threshold
+                    ),
+                );
+            }
         }
         Ok(changed)
     }
@@ -269,5 +317,45 @@ mod tests {
         let store = ProfileStore::load(default_profile_path(&root)).expect("load");
         assert_eq!(store.snapshot().name, "line-realtime");
         assert_eq!(store.params().threshold, 128);
+        assert!(store.snapshot().compliance.audit_config_changes);
+    }
+
+    #[test]
+    fn loads_lab_batch_profile() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = root.join("domains/industrial-inspection/profiles/lab-batch.yaml");
+        let store = ProfileStore::load(path).expect("load");
+        assert_eq!(store.snapshot().name, "lab-batch");
+        assert!(!store.snapshot().scheduler.drop_stale_frames);
+        assert_eq!(store.snapshot().scheduler.max_queue_depth, 64);
+    }
+
+    #[test]
+    fn audit_logs_threshold_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let profile_path = dir.path().join("profile.yaml");
+        let audit_path = dir.path().join("audit.log");
+        std::fs::write(
+            &profile_path,
+            format!(
+                r#"
+name: audit-test
+domain: industrial-inspection
+version: 0.0.1
+compliance:
+  auditConfigChanges: true
+  auditLogPath: {}
+vision:
+  threshold: 100
+"#,
+                audit_path.display()
+            ),
+        )
+        .unwrap();
+        let store = ProfileStore::load_with_audit(&profile_path).expect("load");
+        store.set_threshold(120);
+        let log = std::fs::read_to_string(&audit_path).unwrap();
+        assert!(log.contains("vision.threshold.patch"));
+        assert!(log.contains("100 -> 120"));
     }
 }

@@ -84,7 +84,7 @@
 
 **目标**: **industrial-inspection** 成为可对外演示的 AOI 最小产品。
 
-**状态 (2026-06)**: 🚧 进行中 — 配方热更新、MES 对接、line-publisher、AOI Web 预览、phase3 E2E。
+**状态 (2026-06)**: 🚧 收尾中 — 配方热更新、MES、line-publisher、AOI Web + SPC trend、audit JSONL、lab-batch profile、1080p bench、plc-trigger 模拟；真机 GigE/PLC 待做。
 
 | 模块 | 路径 | 交付物 | 内容要点 |
 |------|------|--------|----------|

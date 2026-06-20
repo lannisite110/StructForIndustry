@@ -110,11 +110,7 @@ impl TaskScheduler {
             }
         });
 
-        Self {
-            config,
-            stats,
-            tx,
-        }
+        Self { config, stats, tx }
     }
 
     pub fn stats(&self) -> Arc<SchedulerStats> {
@@ -193,9 +189,7 @@ async fn dispatch_one(
     )?;
     bus.publish_task_done(event_bytes, resp.task_id);
 
-    let snapshot = bus
-        .spc()
-        .ingest(notify.frame_id, &resp, published_at);
+    let snapshot = bus.spc().ingest(notify.frame_id, &resp, published_at);
     if let Ok(spc_bytes) = metrics_payload_bytes(&snapshot) {
         bus.publish_spc_metrics(spc_bytes, notify.frame_id);
     }

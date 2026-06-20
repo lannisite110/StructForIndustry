@@ -139,10 +139,8 @@ pub fn result_event_bytes_from_response(
     published_at_ns: u64,
 ) -> Result<Vec<u8>, WireError> {
     let result_bytes = result_bytes_from_response(resp, plugin_name, plugin_version)?;
-    let result_reader = capnp::serialize::read_message(
-        &result_bytes[..],
-        capnp::message::ReaderOptions::new(),
-    )?;
+    let result_reader =
+        capnp::serialize::read_message(&result_bytes[..], capnp::message::ReaderOptions::new())?;
     let result_msg = result_reader.get_root::<result_capnp::result::Reader>()?;
 
     let mut message = Builder::new_default();
@@ -171,7 +169,10 @@ fn write_detection(mut det: result_capnp::detection::Builder<'_>, src: &Detectio
     bbox.set_height(src.bbox.height);
 }
 
-pub async fn send_request(socket_path: &Path, req: &TaskRequest) -> Result<TaskResponse, WireError> {
+pub async fn send_request(
+    socket_path: &Path,
+    req: &TaskRequest,
+) -> Result<TaskResponse, WireError> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixStream;
 

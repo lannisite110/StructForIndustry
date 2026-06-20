@@ -1,0 +1,46 @@
+# Lab batch profile — queue all frames, no drop (R&D / golden-set eval)
+name: lab-batch
+domain: industrial-inspection
+version: 0.0.1
+
+scheduler:
+  mode: batch
+  dropStaleFrames: false
+  maxQueueDepth: 64
+  defaultDeadlineMs: 500
+  autoVision: true
+  taskType: vision.detect.defect
+
+vision:
+  plugin: defect-detect
+  threshold: 128
+  roi:
+    x: 0
+    y: 0
+    width: 1920
+    height: 1080
+
+hal:
+  captureMode: free-running
+  framePoolSize: 16
+  resolution:
+    width: 1920
+    height: 1080
+
+spc:
+  windowSize: 64
+  persist: true
+  persistCapacity: 8192
+  metrics:
+    - gray_mean
+    - ng_rate
+
+mes:
+  enabled: false
+  endpoint: "http://127.0.0.1:8090/inspection/result"
+  batchId: lab-1
+
+compliance:
+  auditConfigChanges: true
+  retainResultsDays: 180
+  policy: compliance/audit-policy.yaml

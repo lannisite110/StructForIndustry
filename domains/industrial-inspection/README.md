@@ -59,13 +59,17 @@ See [`profiles/`](profiles/) for field-level configuration.
 |-----------|--------|
 | manifest + docs | ✅ |
 | profiles + hot reload API | ✅ |
+| profiles/lab-batch | ✅ batch queue, no drop |
+| audit config changes | ✅ JSONL log on patch/reload |
 | plugins/defect-detect | ✅ sidecar + mock + profile default |
 | plugins/spc-metrics | ✅ Julia lib + bus `spc.metrics` |
 | plugins/mes-reporter | ✅ REST + bus integration |
 | hal-ext/line-publisher | ✅ triggered shm frames |
 | examples/aoi-line-demo | ✅ full stack script |
-| Web preview (`/` on sfi-bus) | ✅ |
-| hal-ext PLC/GigE | 🔲 planned |
+| Web preview (`/` on sfi-bus) | ✅ + SPC trend chart |
+| 1080p bench test | ✅ `bench_1080p` + script |
+| hal-ext PLC/GigE | 🔲 real hardware (sim OK) |
+| plugins/ai-infer | 🚧 mock sidecar scaffold |
 
 ## Related domains
 

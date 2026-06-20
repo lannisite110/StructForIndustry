@@ -141,17 +141,21 @@ fn read_plugin_info(raw: &sfi_plugin_info) -> Result<PluginInfo, LoadError> {
     let version = if raw.version.is_null() {
         String::new()
     } else {
-        unsafe { CStr::from_ptr(raw.version) }.to_string_lossy().into_owned()
+        unsafe { CStr::from_ptr(raw.version) }
+            .to_string_lossy()
+            .into_owned()
     };
 
     let mut capabilities = Vec::new();
     if !raw.capabilities.is_null() && raw.capability_count > 0 {
-        let caps =
-            unsafe { std::slice::from_raw_parts(raw.capabilities, raw.capability_count) };
+        let caps = unsafe { std::slice::from_raw_parts(raw.capabilities, raw.capability_count) };
         for cap in caps {
             if !cap.is_null() {
-                capabilities
-                    .push(unsafe { CStr::from_ptr(*cap) }.to_string_lossy().into_owned());
+                capabilities.push(
+                    unsafe { CStr::from_ptr(*cap) }
+                        .to_string_lossy()
+                        .into_owned(),
+                );
             }
         }
     }

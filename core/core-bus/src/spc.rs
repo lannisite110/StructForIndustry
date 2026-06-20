@@ -4,8 +4,8 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use capnp::message::Builder;
-use sfi_plugin_host::TaskResponse;
 use sfi_contracts::result_capnp;
+use sfi_plugin_host::TaskResponse;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct SpcMetricValue {
@@ -45,15 +45,9 @@ impl SpcEngine {
         }
     }
 
-    pub fn ingest(
-        &self,
-        frame_id: u64,
-        resp: &TaskResponse,
-        published_at_ns: u64,
-    ) -> SpcSnapshot {
-        let gray_mean = metric_value(resp, "gray_mean").unwrap_or_else(|| {
-            metric_value(resp, "bright_pixels").unwrap_or(0.0)
-        });
+    pub fn ingest(&self, frame_id: u64, resp: &TaskResponse, published_at_ns: u64) -> SpcSnapshot {
+        let gray_mean = metric_value(resp, "gray_mean")
+            .unwrap_or_else(|| metric_value(resp, "bright_pixels").unwrap_or(0.0));
         let is_ng = !resp.detections.is_empty() || resp.status == "error";
 
         let mut state = self.inner.lock().expect("spc lock");
@@ -65,8 +59,7 @@ impl SpcEngine {
         let ng_rate = if state.ng_samples.is_empty() {
             0.0
         } else {
-            state.ng_samples.iter().filter(|&&ng| ng).count() as f64
-                / state.ng_samples.len() as f64
+            state.ng_samples.iter().filter(|&&ng| ng).count() as f64 / state.ng_samples.len() as f64
         };
 
         let defect_components = metric_value(resp, "defect_components").unwrap_or(0.0);

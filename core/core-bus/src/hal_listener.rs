@@ -32,7 +32,10 @@ pub async fn run_hal_listener(config: &BusConfig, bus: CoreBus) -> std::io::Resu
     }
 }
 
-async fn handle_hal_connection(mut stream: UnixStream, bus: CoreBus) -> Result<(), HalListenerError> {
+async fn handle_hal_connection(
+    mut stream: UnixStream,
+    bus: CoreBus,
+) -> Result<(), HalListenerError> {
     loop {
         let len = match stream.read_u32_le().await {
             Ok(n) => n,
@@ -59,7 +62,10 @@ pub enum HalListenerError {
     InvalidLength(usize),
 }
 
-pub async fn send_hal_notify(stream: &mut UnixStream, notify: &HalFrameNotify) -> std::io::Result<()> {
+pub async fn send_hal_notify(
+    stream: &mut UnixStream,
+    notify: &HalFrameNotify,
+) -> std::io::Result<()> {
     let body = notify.encode();
     stream.write_u32_le(NOTIFY_SIZE as u32).await?;
     stream.write_all(&body).await?;

@@ -110,10 +110,7 @@ fn cmd_domain_list(root: &Path) -> Result<(), String> {
         } else {
             ""
         };
-        println!(
-            "{}{}\t{}",
-            manifest.name, marker, manifest.description
-        );
+        println!("{}{}\t{}", manifest.name, marker, manifest.description);
     }
     Ok(())
 }
@@ -147,9 +144,7 @@ fn cmd_plugin_new(root: &Path, name: &str, lang: &str) -> Result<(), String> {
     }
     fs::create_dir_all(&plugin_dir).map_err(|e| e.to_string())?;
 
-    let readme = format!(
-        "# {name}\n\nScaffold created by `sfi plugin new`.\n\nLanguage: {lang}\n"
-    );
+    let readme = format!("# {name}\n\nScaffold created by `sfi plugin new`.\n\nLanguage: {lang}\n");
     fs::write(plugin_dir.join("README.md"), readme).map_err(|e| e.to_string())?;
 
     match lang {
