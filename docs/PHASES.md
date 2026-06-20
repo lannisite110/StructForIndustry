@@ -38,13 +38,13 @@
 | `core/contracts` | Cap'n Proto + C | `schema/*.capnp` | `Frame`, `Task`, `Result`, `PluginManifest`, `TimingMetrics` |
 | `core/contracts/abi` | C | `sfi.h` | in-process 插件：`sfi_init` / `sfi_process_task` / `sfi_shutdown` |
 | 版本策略 | — | `apiVersion` 文档 | v0 允许修订；v1 起 semver 与兼容矩阵 |
-| CI | GitHub Actions | `.github/workflows/` | schema 校验、Rust fmt/clippy、Zig build、Julia 语法检查 |
+| CI | GitHub Actions | `.github/workflows/` | schema 校验、Rust fmt/clippy/test、Julia 语法检查 |
 | 文档 | Markdown | `docs/`, README 导航 | 架构图、领域切换说明、CONTRIBUTING |
 | 假插件 | Rust | `tools/fake-plugin` | 消费 mock `Task`，验证加载与 IPC |
 
-**里程碑**: `cargo test` + `zig test` + 契约兼容性测试全绿。
+**里程碑**: `cargo test --workspace` + 契约兼容性测试全绿。
 
-**人力（估）**: 1 架构 + 1 Rust，兼职 Zig。
+**人力（估）**: 1 架构 + 1 Rust。
 
 ---
 
@@ -54,7 +54,7 @@
 
 | 模块 | 语言 | 交付物 | 内容要点 |
 |------|------|--------|----------|
-| `core/hal-rs` | Zig | 库 + 采集进程 | `DeviceRegistry`, `FramePool`, `CaptureStream`；先支持 **V4L2/USB** 或单一 GigE SDK |
+| `core/hal-rs` | Rust | 库 + 采集进程 | 合成采集 `sfi-capture`（FramePool + shm + HAL notify）；真机采集见 `hal-ext`（V4L2/GigE/MindVision） |
 | `core/core-bus` | Rust | 库 + 守护进程 | 消息主题：`frame.new`, `task.done`, `plugin.health`；基础 `TaskScheduler` |
 | `core/plugin-host` | Rust | 运行时 | manifest 加载、`apiVersion` 协商、子进程 supervisor、崩溃重启 |
 | IPC | — | 共享内存 + Cap'n Proto | 像素走 handle；控制面走 Unix socket |
@@ -63,7 +63,7 @@
 
 **里程碑**: 单路 1080p 相机稳定 30fps，`frame.new` 可在日志/ API 中观测，插件崩溃 30s 内恢复。
 
-**人力（估）**: 1 Zig + 2 Rust，约 6–10 周。
+**人力（估）**: 2 Rust，约 6–10 周。
 
 **风险**: 相机 SDK 选型 — 先开源/通用协议，厂商 SDK 放 `hal-ext`。
 
@@ -97,7 +97,7 @@
 
 | 模块 | 路径 | 交付物 | 内容要点 |
 |------|------|--------|----------|
-| HAL 扩展 | `domains/industrial-inspection/hal-ext` | Zig | 产线相机触发、PLC 握手（或 GPIO 模拟触发） |
+| HAL 扩展 | `domains/industrial-inspection/hal-ext` | Rust | 产线相机触发、PLC 握手（或 GPIO 模拟触发） |
 | 业务插件 | `domains/.../plugins/defect-detect` | Julia | 表面缺陷传统 CV 流水线 |
 | 业务插件 | `domains/.../plugins/spc-metrics` | Julia | 灰度/SPC 指标、趋势窗口 |
 | 配方 | `profiles/line-realtime.yaml` | 配置 | ROI、阈值、节拍、丢帧策略 |
@@ -135,7 +135,7 @@
 
 **人力（估）**: 1 ML + 1 Rust，约 4–6 周。
 
-**主路径**: ONNX + Rust `ort`。Mojo 不在主线（hobby 可选）。
+**主路径**: ONNX + Rust `ort`（含 OK-only 异常检测的 ONNX 特征提取分支）。
 
 ---
 
@@ -145,7 +145,7 @@
 
 | 模块 | 路径 | 交付物 | 内容要点 |
 |------|------|--------|----------|
-| 边缘 runtime | `domains/industrial-inspection` | Rust + Zig | 轻量部署、远程配置、健康上报 |
+| 边缘 runtime | `domains/industrial-inspection` | Rust | 轻量部署、远程配置、健康上报 |
 | 部署 | `examples/deploy` | Docker | 单机 compose（已有 docker-demo-smoke） |
 | 可观测 | — | metrics/logs | Prometheus：fps、延迟、队列深度、插件重启次数（已有 metrics 雏形） |
 | **量化报告** ✅ | `docs/reports/` | 报告 | 换型曲线 / 推理延迟表 / 光照 ablation / 误报率·漏检率（`tools/scripts/anomaly-reports.sh` 生成，合成帧；待替换为实验台数据） |
@@ -161,16 +161,17 @@
 
 ## 技术栈分工（各阶段参与度）
 
-| 阶段 | Zig | Rust | Julia | ONNX/`ort` |
-|------|-----|------|-------|------------|
-| 0 | 低 | 高 | 低 | — |
-| 1 | 高 | 高 | — | — |
-| 2 | 低 | 高 | 高 | — |
-| 3 | 中 | 高 | 高 | — |
-| 4 | — | 高 | 中 | 高 |
-| 5 | 中 | 高 | 中 | 中 |
+| 阶段 | Rust | Julia | ONNX/`ort` |
+|------|------|-------|------------|
+| 0 | 高 | 低 | — |
+| 1 | 高 | — | — |
+| 2 | 高 | 高 | — |
+| 3 | 高 | 高 | — |
+| 4 | 高 | 中 | 高 |
+| 5 | 高 | 中 | 中 |
 
-> Zig/HAL「够用就好」（能采到帧即可），不为采集层再投半年。Mojo 不在主线。
+> 全栈统一到 **Rust + Julia + ONNX**：HAL（采集）与核心总线都是 Rust，算法插件用 Julia，
+> AI 推理走 ONNX/`ort`。已移除早期的 Zig/Mojo 试验分支以降低构建与维护成本。
 
 ---
 

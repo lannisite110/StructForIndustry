@@ -11,10 +11,10 @@ Production-line vision, defect detection, dimensional measurement, SPC, and MES 
 
 | Area | Stack | Notes |
 |------|-------|-------|
-| Acquisition | Zig `hal-ext` | GigE/USB cameras, PLC, motion triggers |
+| Acquisition | Rust `hal-ext` | V4L2/GigE/MindVision cameras, PLC, motion triggers |
 | Orchestration | Rust `core-bus` | line recipes, beat time, drop-frame policy |
 | Algorithms | Julia plugins | traditional CV, lightweight ML, SPC stats |
-| Inference | Mojo `plugins/ai-infer` | GPU/NPU defect models (optional phase) |
+| Inference | Rust `plugins/ai-infer` | ONNX (`ort`) + OK-only anomaly defect models |
 
 ## Latency target
 

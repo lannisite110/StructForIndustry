@@ -1,0 +1,21 @@
+[package]
+name = "sfi-hal-capture"
+version = "0.0.1"
+description = "Synthetic HAL capture (Phase 1) — POSIX shm + HAL IPC publisher (Rust)"
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "sfi_hal_capture"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sfi-capture"
+path = "src/main.rs"
+
+[dependencies]
+sfi-core-bus = { path = "../core-bus" }
+sfi-plugin-host = { path = "../plugin-host" }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

@@ -4,6 +4,7 @@ members = [
     "core/contracts/rust/sfi-contracts",
     "core/contracts/rust/sfi-abi",
     "core/core-bus",
+    "core/hal-rs",
     "tools/fake-plugin",
     "core/plugin-host",
     "tools/sfi-cli",

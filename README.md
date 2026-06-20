@@ -1,6 +1,6 @@
 # StructForIndustry
 
-**Industrial AOI edge-inspection platform** — Zig (HAL) + Rust (core bus) + Julia (math kernel) + ONNX/`ort` (AI inference).
+**Industrial AOI edge-inspection platform** — Rust (HAL + core bus) + Julia (math kernel) + ONNX/`ort` (AI inference).
 
 A focused, single-domain platform: capture an industrial line frame, run defect
 detection (classical CV or ONNX), publish OK/NG with full traceability — under a
@@ -42,7 +42,7 @@ cursor sfi.code-workspace
 | Layer | Path | Languages |
 |-------|------|-----------|
 | Contracts | [`core/contracts`](core/contracts) | Cap'n Proto, C ABI |
-| HAL | [`core/hal-rs`](core/hal-rs) | Zig |
+| HAL (synthetic capture) | [`core/hal-rs`](core/hal-rs) | Rust |
 | Core bus | [`core/core-bus`](core/core-bus) | Rust |
 | Math kernel | [`core/math-kernel`](core/math-kernel) | Julia |
 | Plugin host | [`core/plugin-host`](core/plugin-host) | Rust |
@@ -82,9 +82,9 @@ SFI_SCHEDULER=1 cargo run -p sfi-core-bus --bin sfi-bus    # auto vision tasks
 cargo run -p sfi-cli -- domain list
 ```
 
-Crates: `sfi-contracts`, `sfi-abi`, `sfi-core-bus`, `sfi-plugin-host`, `fake-plugin`, `sfi-cli`.
+Crates: `sfi-contracts`, `sfi-abi`, `sfi-core-bus`, `sfi-hal-capture`, `sfi-plugin-host`, `fake-plugin`, `sfi-cli`.
 
-Zig HAL: `cd core/hal-rs && zig build`
+Synthetic HAL capture: `cargo run -p sfi-hal-capture --bin sfi-capture` (see [phase1-smoke](tools/scripts/phase1-smoke.sh)).
 
 ## Branch naming
 

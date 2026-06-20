@@ -1,15 +1,18 @@
 # core/hal-rs
 
-Zig hardware abstraction — **Phase 1**: synthetic capture + POSIX shared memory + HAL IPC.
+Synthetic hardware abstraction (**Phase 1**), in **Rust**: Gray8 test pattern +
+POSIX shared memory + HAL IPC publisher. Builds `sfi-capture`, the minimal
+"camera stand-in" that feeds core-bus.
 
-## Build (requires Zig 0.13+)
+> Previously a Zig prototype; reimplemented in Rust so the whole edge stack is a
+> single `cargo` build/test. Same `HalFrameNotify` wire format as the production
+> line publishers.
+
+## Build
 
 ```bash
-cd core/hal-rs
-zig build
+cargo build -p sfi-hal-capture --bin sfi-capture
 ```
-
-Binary: `zig-out/bin/sfi-capture`
 
 ## Run with core-bus
 
@@ -26,7 +29,7 @@ Terminal 2:
 ```bash
 export SFI_BUS_SOCKET=/tmp/sfi-bus.sock
 export SFI_CAPTURE_FRAMES=100
-./zig-out/bin/sfi-capture
+cargo run -p sfi-hal-capture --bin sfi-capture
 ```
 
 Check stats:
@@ -36,14 +39,24 @@ curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/stats
 ```
 
+## Env
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `SFI_BUS_SOCKET` | `$XDG_RUNTIME_DIR/sfi-bus.sock` | HAL Unix socket |
+| `SFI_CAPTURE_FRAMES` | `300` | Frames to publish |
+| `SFI_CAPTURE_FPS` | `30` | Publish rate |
+
 ## Modules
 
-| Module | Role |
-|--------|------|
-| `frame_pool.zig` | POSIX shm pool (`/sfi.pool.N`) |
-| `synthetic.zig` | gray8 test pattern |
-| `ipc.zig` | `hal_ipc.h` notify + Unix socket client |
+| Item | Role |
+|------|------|
+| `lib.rs` `build_notify` | Build `HalFrameNotify` for a synthetic frame |
+| `main.rs` `sfi-capture` | Fill shm test pattern + publish frames |
 
-IPC spec: [`../contracts/hal_ipc.md`](../contracts/hal_ipc.md)
+Shm fill / read uses `sfi-plugin-host::shm_gray8`. IPC spec:
+[`../contracts/hal_ipc.md`](../contracts/hal_ipc.md)
 
-Part of [sfi-platform](https://github.com/StructForIndustry/sfi-platform)
+Quick check: `tools/scripts/phase1-smoke.sh`.
+
+Part of [sfi-platform](https://github.com/lannisite110/StructForIndustry).

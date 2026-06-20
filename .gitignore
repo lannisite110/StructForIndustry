@@ -1,7 +1,6 @@
 # Build outputs
 target/
 **/target/
-zig-out/
 build/
 dist/
 *.o

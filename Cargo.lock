@@ -1138,6 +1138,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sfi-hal-capture"
+version = "0.0.1"
+dependencies = [
+ "sfi-core-bus",
+ "sfi-plugin-host",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "sfi-plugin-host"
 version = "0.0.1"
 dependencies = [

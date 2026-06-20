@@ -30,6 +30,9 @@ cargo fmt --manifest-path plugins/ai-infer/Cargo.toml -- --check
 cargo clippy --manifest-path plugins/ai-infer/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path plugins/ai-infer/Cargo.toml
 
+echo "== phase 1 synthetic capture smoke (sfi-capture) =="
+./tools/scripts/phase1-smoke.sh
+
 echo "== 1080p bench =="
 ./tools/scripts/bench-1080p.sh
 ./tools/scripts/bench-1080p-report.sh /tmp/sfi-bench-1080p.json

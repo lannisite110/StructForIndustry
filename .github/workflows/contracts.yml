@@ -117,14 +117,10 @@ jobs:
           ./tools/scripts/anomaly-infer-e2e.sh
           ./tools/scripts/anomaly-reports.sh
 
-      - uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.13.0
-
-      - name: Zig build hal-rs
+      - name: Phase 1 synthetic capture smoke (sfi-capture)
         run: |
-          cd core/hal-rs
-          zig build
+          chmod +x tools/scripts/phase1-smoke.sh
+          ./tools/scripts/phase1-smoke.sh
 
   docker-demo-smoke:
     runs-on: ubuntu-latest

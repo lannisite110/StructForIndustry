@@ -34,7 +34,7 @@ for f in *.capnp; do capnp compile -o- -I . "$f"; done
 
 Rust (future): `capnpc` in `core/core-bus` build.rs.
 
-Zig / Julia: generate bindings from compiled schemas or use capnp RPC runtime.
+Julia: generate bindings from compiled schemas or use capnp RPC runtime.
 
 ## Design rules
 

@@ -14,6 +14,7 @@ export SFI_CAPTURE_FRAMES="$CAPTURE_FRAMES"
 
 cd "$ROOT"
 cargo build -p sfi-core-bus --bin sfi-bus
+cargo build -p sfi-hal-capture --bin sfi-capture
 
 BUS_PID=""
 cleanup() {
@@ -36,8 +37,8 @@ for _ in $(seq 1 50); do
 done
 [[ -S "$SOCKET" ]] || { echo "bus socket not ready"; exit 1; }
 
-# Rust-side synthetic publisher (same wire format as hal-rs)
-cargo test -p sfi-core-bus hal_e2e -- --nocapture >/dev/null
+# Rust synthetic HAL capture (replaces the former Zig sfi-capture)
+cargo run -q -p sfi-hal-capture --bin sfi-capture
 
 FRAMES="$(curl -sf "http://$HTTP/stats" | grep -o '"frames_received":[0-9]*' | cut -d: -f2)"
 echo "frames_received=$FRAMES"
