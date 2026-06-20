@@ -169,6 +169,10 @@ fn resolve_params(config: &SchedulerConfig, bus: &CoreBus) -> DispatchParams {
             roi_y: 0,
             roi_width: 1920,
             roi_height: 1080,
+            measure_tolerance: 0.0,
+            measure_nominal: 0.0,
+            inspect_position_tolerance: 0.0,
+            inspect_min_score: 0.8,
         }
     }
 }

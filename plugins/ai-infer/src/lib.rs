@@ -1,6 +1,7 @@
 //! ai-infer shared library: anomaly detection + ONNX scoring.
 
 pub mod anomaly;
+pub mod bench_fixtures;
 pub mod onnx;
 
 /// Synthetic Gray8 frames for OK-only calibration, E2E, and the three reports.

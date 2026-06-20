@@ -121,6 +121,19 @@ function build_inspect_response(
         "$message: ncc below min_score ($(score) < $(cfg.min_score))"
     end
 
+    if status == "ok" && cfg.position_tolerance > 0.0
+        for name in ["position_deviation_x_px", "position_deviation_y_px", "position_deviation_x_mm", "position_deviation_y_mm"]
+            for m in metrics
+                if get(m, "name", "") == name && abs(Float64(get(m, "value", 0.0))) > cfg.position_tolerance
+                    status = "error"
+                    msg = "$message: position tolerance exceeded (±$(cfg.position_tolerance))"
+                    break
+                end
+            end
+            status == "error" && break
+        end
+    end
+
     detection = Dict(
         "class_id" => 12,
         "label" => label,

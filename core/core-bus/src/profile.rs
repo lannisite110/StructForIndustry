@@ -276,6 +276,47 @@ pub struct SpcSection {
     pub persist_path: Option<String>,
     #[serde(default = "default_spc_capacity")]
     pub persist_capacity: u32,
+    #[serde(default)]
+    pub limits: SpcLimitsSection,
+    #[serde(default = "default_hist_bins")]
+    pub histogram_bins: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SpcLimitsSection {
+    #[serde(default = "default_spc_metric")]
+    pub metric: String,
+    #[serde(default = "default_gray_usl")]
+    pub usl: f64,
+    #[serde(default = "default_gray_lsl")]
+    pub lsl: f64,
+    #[serde(default)]
+    pub target: f64,
+}
+
+impl Default for SpcLimitsSection {
+    fn default() -> Self {
+        Self {
+            metric: default_spc_metric(),
+            usl: default_gray_usl(),
+            lsl: default_gray_lsl(),
+            target: 0.0,
+        }
+    }
+}
+
+fn default_spc_metric() -> String {
+    "gray_mean".into()
+}
+fn default_gray_usl() -> f64 {
+    140.0
+}
+fn default_gray_lsl() -> f64 {
+    100.0
+}
+fn default_hist_bins() -> u32 {
+    16
 }
 
 fn default_spc_persist() -> bool {
@@ -321,6 +362,10 @@ pub struct DispatchParams {
     pub roi_y: u32,
     pub roi_width: u32,
     pub roi_height: u32,
+    pub measure_tolerance: f64,
+    pub measure_nominal: f64,
+    pub inspect_position_tolerance: f64,
+    pub inspect_min_score: f64,
 }
 
 impl From<&LineProfile> for DispatchParams {
@@ -338,6 +383,10 @@ impl From<&LineProfile> for DispatchParams {
             roi_y: p.vision.roi.y,
             roi_width: p.vision.roi.width,
             roi_height: p.vision.roi.height,
+            measure_tolerance: p.measure.dimension.tolerance,
+            measure_nominal: p.measure.dimension.nominal,
+            inspect_position_tolerance: p.inspect.position_tolerance,
+            inspect_min_score: p.inspect.min_score,
         }
     }
 }

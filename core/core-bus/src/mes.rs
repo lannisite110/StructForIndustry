@@ -32,12 +32,9 @@ impl InspectionReport {
             .iter()
             .filter(|d| is_surface_defect(d))
             .count() as u32;
-        let verdict = if defect_count > 0 || resp.status == "error" {
+        let tolerance_ng = tolerance_violation(resp, params);
+        let verdict = if defect_count > 0 || resp.status == "error" || tolerance_ng {
             "NG"
-        } else if params.task_type.starts_with("vision.measure.") {
-            if resp.status == "error" { "NG" } else { "OK" }
-        } else if params.task_type.starts_with("vision.inspect.") {
-            if resp.status == "error" { "NG" } else { "OK" }
         } else {
             "OK"
         };
@@ -55,7 +52,6 @@ impl InspectionReport {
 }
 
 fn is_surface_defect(d: &sfi_plugin_host::Detection) -> bool {
-    // Measure overlays (edge / dimension) are not inspection defects.
     if d.class_id == 10 || d.class_id == 11 || d.class_id == 12 {
         return false;
     }
@@ -63,6 +59,58 @@ fn is_surface_defect(d: &sfi_plugin_host::Detection) -> bool {
         || d.class_id == 99
         || d.label == "surface_defect"
         || d.label == "defect"
+}
+
+fn tolerance_violation(resp: &TaskResponse, params: &DispatchParams) -> bool {
+    if params.task_type.starts_with("vision.measure.") && params.measure_tolerance > 0.0 {
+        if exceeds_tolerance(resp, "dimension_deviation_px", params.measure_tolerance) {
+            return true;
+        }
+        if exceeds_tolerance(resp, "dimension_deviation_mm", params.measure_tolerance) {
+            return true;
+        }
+        if exceeds_tolerance(resp, "edge_deviation_px", params.measure_tolerance) {
+            return true;
+        }
+        if exceeds_tolerance(resp, "edge_deviation_mm", params.measure_tolerance) {
+            return true;
+        }
+    }
+    if params.task_type.starts_with("vision.inspect.") && params.inspect_position_tolerance > 0.0 {
+        if exceeds_tolerance(resp, "position_deviation_x_px", params.inspect_position_tolerance) {
+            return true;
+        }
+        if exceeds_tolerance(resp, "position_deviation_y_px", params.inspect_position_tolerance) {
+            return true;
+        }
+        if exceeds_tolerance(resp, "position_deviation_x_mm", params.inspect_position_tolerance) {
+            return true;
+        }
+        if exceeds_tolerance(resp, "position_deviation_y_mm", params.inspect_position_tolerance) {
+            return true;
+        }
+    }
+    if params.task_type.starts_with("vision.inspect.") && params.inspect_min_score > 0.0 {
+        let ncc = metric_value(resp, "ncc_score");
+        if let Some(s) = ncc {
+            if s < params.inspect_min_score {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn exceeds_tolerance(resp: &TaskResponse, name: &str, tolerance: f64) -> bool {
+    metric_value(resp, name)
+        .is_some_and(|v| v.abs() > tolerance)
+}
+
+fn metric_value(resp: &TaskResponse, name: &str) -> Option<f64> {
+    resp.metrics
+        .iter()
+        .find(|m| m.name == name)
+        .map(|m| m.value)
 }
 
 pub async fn post_mes_report(endpoint: &str, report: &InspectionReport) -> Result<(), MesError> {
@@ -87,7 +135,28 @@ pub enum MesError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sfi_plugin_host::{BBox, Detection, TaskResponse};
+    use sfi_plugin_host::{BBox, Detection, Metric, TaskResponse};
+
+    fn base_params(task_type: &str) -> DispatchParams {
+        DispatchParams {
+            threshold: 128,
+            task_type: task_type.into(),
+            plugin_name: "vision-2d".into(),
+            recipe_version: "0.0.1".into(),
+            mes_enabled: true,
+            mes_endpoint: String::new(),
+            mes_batch_id: "b1".into(),
+            spc_window: 32,
+            roi_x: 0,
+            roi_y: 0,
+            roi_width: 1920,
+            roi_height: 1080,
+            measure_tolerance: 2.0,
+            measure_nominal: 0.0,
+            inspect_position_tolerance: 3.0,
+            inspect_min_score: 0.8,
+        }
+    }
 
     #[test]
     fn verdict_ng_when_detections_present() {
@@ -108,22 +177,45 @@ mod tests {
             }],
             metrics: vec![],
         };
-        let params = DispatchParams {
-            threshold: 128,
-            task_type: "vision.detect.defect".into(),
-            plugin_name: "vision-2d".into(),
-            recipe_version: "0.0.1".into(),
-            mes_enabled: true,
-            mes_endpoint: String::new(),
-            mes_batch_id: "b1".into(),
-            spc_window: 32,
-            roi_x: 0,
-            roi_y: 0,
-            roi_width: 1920,
-            roi_height: 1080,
-        };
+        let params = base_params("vision.detect.defect");
         let r = InspectionReport::from_task(42, &resp, &params, 100, "/sfi.test", None);
         assert_eq!(r.verdict, "NG");
         assert_eq!(r.defect_count, 1);
+    }
+
+    #[test]
+    fn measure_tolerance_ng() {
+        let resp = TaskResponse {
+            task_id: 1,
+            status: "ok".into(),
+            message: String::new(),
+            detections: vec![],
+            metrics: vec![Metric {
+                name: "edge_deviation_px".into(),
+                value: 5.0,
+                unit: "px".into(),
+            }],
+        };
+        let params = base_params("vision.measure.edge");
+        let r = InspectionReport::from_task(1, &resp, &params, 1, "/sfi", None);
+        assert_eq!(r.verdict, "NG");
+    }
+
+    #[test]
+    fn inspect_position_tolerance_ng() {
+        let resp = TaskResponse {
+            task_id: 1,
+            status: "ok".into(),
+            message: String::new(),
+            detections: vec![],
+            metrics: vec![Metric {
+                name: "position_deviation_x_px".into(),
+                value: 10.0,
+                unit: "px".into(),
+            }],
+        };
+        let params = base_params("vision.inspect.template");
+        let r = InspectionReport::from_task(1, &resp, &params, 1, "/sfi", None);
+        assert_eq!(r.verdict, "NG");
     }
 }

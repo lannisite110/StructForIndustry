@@ -99,6 +99,8 @@ Pkg.instantiate()
 include("domains/industrial-inspection/plugins/spc-metrics/src/SFISpcMetrics.jl")
 using SFISpcMetrics
 @assert ng_rate([true, false, true]) ≈ 2/3
+@assert cp_cpk(120.0, 2.0, 130.0, 110.0)[1] > 0.5
+@assert histogram_peak([100.0, 110.0, 120.0], 16)[2] > 0.0
 println("SFISpcMetrics OK")
 '
 

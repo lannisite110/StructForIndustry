@@ -26,6 +26,33 @@ function parse_measure_params(params::AbstractDict)
     )
 end
 
+function tolerance_violation(metrics, tolerance::Float64, names::Vector{String})
+    tolerance <= 0.0 && return false
+    for name in names
+        for m in metrics
+            if get(m, "name", "") == name
+                abs(Float64(get(m, "value", 0.0))) > tolerance
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function finalize_measure_response(resp, cfg, message)
+    names = String[
+        "dimension_deviation_px",
+        "dimension_deviation_mm",
+        "edge_deviation_px",
+        "edge_deviation_mm",
+    ]
+    if tolerance_violation(resp["metrics"], cfg.tolerance, names)
+        resp["status"] = "error"
+        resp["message"] = "$(message): tolerance exceeded (±$(cfg.tolerance))"
+    end
+    return resp
+end
+
 function process_measure_task(
     pixels::AbstractVector{UInt8},
     width::Int,
@@ -90,12 +117,16 @@ function process_measure_task(
         push!(detections, point_detection(pos, cfg.y0, strength, "edge"))
     end
 
-    return Dict(
-        "task_id" => task_id,
-        "status" => "ok",
-        "message" => message,
-        "detections" => detections,
-        "metrics" => metrics,
+    return finalize_measure_response(
+        Dict(
+            "task_id" => task_id,
+            "status" => "ok",
+            "message" => message,
+            "detections" => detections,
+            "metrics" => metrics,
+        ),
+        cfg,
+        message,
     )
 end
 

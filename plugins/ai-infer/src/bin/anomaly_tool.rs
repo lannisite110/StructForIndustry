@@ -11,14 +11,90 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use sfi_ai_infer::anomaly::{calibrate, AnomalyModel, CalibrateConfig, Extractor};
+use sfi_ai_infer::bench_fixtures::{
+    bench_root_exists, default_bench_root, default_frame_dims, load_defect_frames, load_ok_frames,
+    write_synthetic_bench_tree,
+};
 use sfi_ai_infer::synthetic::{
     apply_illumination, defect_at, defect_surface, ok_surface, ok_surface_amp, HEIGHT, WIDTH,
 };
 
-fn ok_frames(n: u32) -> Vec<(Vec<u8>, u32, u32)> {
-    (0..n)
-        .map(|i| (ok_surface(i as u64), WIDTH, HEIGHT))
-        .collect()
+struct FrameCtx {
+    width: u32,
+    height: u32,
+    fixture_root: Option<PathBuf>,
+    from_dir: Option<PathBuf>,
+}
+
+impl FrameCtx {
+    fn from_args(args: &[String]) -> Self {
+        let (dw, dh) = default_frame_dims();
+        let width = arg_value(args, "--width")
+            .and_then(|v| v.parse().ok())
+            .or_else(|| std::env::var("SFI_BENCH_WIDTH").ok().and_then(|v| v.parse().ok()))
+            .unwrap_or(dw);
+        let height = arg_value(args, "--height")
+            .and_then(|v| v.parse().ok())
+            .or_else(|| std::env::var("SFI_BENCH_HEIGHT").ok().and_then(|v| v.parse().ok()))
+            .unwrap_or(dh);
+        let fixture_root = arg_value(args, "--fixture-root").map(PathBuf::from);
+        let from_dir = arg_value(args, "--from-dir").map(PathBuf::from);
+        Self {
+            width,
+            height,
+            fixture_root,
+            from_dir,
+        }
+    }
+
+    fn ok_frames(&self, n: u32) -> Result<Vec<(Vec<u8>, u32, u32)>, String> {
+        if let Some(dir) = &self.from_dir {
+            return sfi_ai_infer::bench_fixtures::load_gray8_dir(dir, self.width, self.height)
+                .map_err(|e| e.to_string())
+                .map(|frames| {
+                    frames
+                        .into_iter()
+                        .map(|f| (f.pixels, f.width, f.height))
+                        .collect()
+                });
+        }
+        if let Some(root) = &self.fixture_root {
+            let all = load_ok_frames(root, self.width, self.height).map_err(|e| e.to_string())?;
+            if !all.is_empty() {
+                if n as usize >= all.len() {
+                    return Ok(all);
+                }
+                return Ok(all.into_iter().take(n as usize).collect());
+            }
+        }
+        Ok((0..n)
+            .map(|i| (ok_surface(i as u64), self.width, self.height))
+            .collect())
+    }
+
+    fn data_source_label(&self) -> String {
+        if self.from_dir.is_some() {
+            format!("bench dir `{}`", self.from_dir.as_ref().unwrap().display())
+        } else if self.fixture_root.is_some() {
+            format!(
+                "bench fixtures `{}`",
+                self.fixture_root.as_ref().unwrap().display()
+            )
+        } else {
+            "synthetic frames".into()
+        }
+    }
+
+    fn reference_defect(&self) -> Vec<u8> {
+        if let Some(root) = &self.fixture_root {
+            if let Ok(defects) = load_defect_frames(root, self.width, self.height) {
+                if let Some((f, _, _)) = defects.first() {
+                    return f.clone();
+                }
+            }
+        }
+        defect_surface(0)
+    }
 }
 
 /// Parse `--extractor handcrafted|onnx[:model.onnx]` (default onnx reference).
@@ -59,7 +135,9 @@ fn cmd_calibrate(args: &[String]) -> Result<(), String> {
         .unwrap_or(20);
     let out = arg_value(args, "--out").map(PathBuf::from);
     let cfg = config_from_args(args);
-    let model = calibrate(&ok_frames(n), &cfg)?;
+    let ctx = FrameCtx::from_args(args);
+    let frames = ctx.ok_frames(n)?;
+    let model = calibrate(&frames, &cfg)?;
     let json = model.to_json()?;
     match out {
         Some(path) => {
@@ -140,7 +218,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     sorted[idx.min(sorted.len() - 1)]
 }
 
-fn report_changeover(cfg: &CalibrateConfig) -> String {
+fn report_changeover(cfg: &CalibrateConfig, ctx: &FrameCtx) -> String {
     let mut out = String::from("## Changeover curve (OK samples vs separation)\n\n");
     out.push_str(&format!(
         "Feature extractor: **{}**. How detection margin grows with more OK samples.\n\n",
@@ -148,16 +226,16 @@ fn report_changeover(cfg: &CalibrateConfig) -> String {
     ));
     out.push_str("| OK samples | threshold | defect score | margin (score/thr) | verdict |\n");
     out.push_str("|-----------:|----------:|-------------:|-------------------:|:-------:|\n");
-    let defect = defect_surface(0);
+    let defect = ctx.reference_defect();
     for &n in &[1u32, 5, 10, 20] {
-        let model = match calibrate(&ok_frames(n), cfg) {
+        let model = match ctx.ok_frames(n).and_then(|ok| calibrate(&ok, cfg).map_err(|e| e.to_string())) {
             Ok(m) => m,
             Err(e) => {
                 out.push_str(&format!("| {n} | error: {e} | | | |\n"));
                 continue;
             }
         };
-        let r = model.score(&defect, WIDTH, HEIGHT).unwrap();
+        let r = model.score(&defect, ctx.width, ctx.height).unwrap();
         let margin = if r.threshold > 0.0 {
             r.score / r.threshold
         } else {
@@ -175,7 +253,7 @@ fn report_changeover(cfg: &CalibrateConfig) -> String {
     out
 }
 
-fn report_latency(cfg: &CalibrateConfig) -> String {
+fn report_latency(cfg: &CalibrateConfig, ctx: &FrameCtx) -> String {
     let mut out = String::from("## Inference latency (CPU, anomaly scorer)\n\n");
     out.push_str(&format!(
         "Per-frame anomaly scoring latency (single thread). Feature extractor: **{}**.\n\n",
@@ -184,7 +262,7 @@ fn report_latency(cfg: &CalibrateConfig) -> String {
     out.push_str("| resolution | iters | p50 | p95 | p99 | mean |\n");
     out.push_str("|-----------|------:|----:|----:|----:|-----:|\n");
 
-    let model = calibrate(&ok_frames(20), cfg).unwrap();
+    let model = calibrate(&ctx.ok_frames(20).unwrap(), cfg).unwrap();
     // Score at the calibration resolution; larger resolutions reuse the same
     // grid so cost scales with pixels.
     for &(w, h, iters) in &[(WIDTH, HEIGHT, 2000u32), (640, 480, 500), (1920, 1080, 200)] {
@@ -231,7 +309,7 @@ fn synth_resized(w: u32, h: u32) -> Vec<u8> {
     out
 }
 
-fn report_illum(cfg: &CalibrateConfig) -> String {
+fn report_illum(cfg: &CalibrateConfig, ctx: &FrameCtx) -> String {
     let mut out = String::from("## Illumination ablation (robustness)\n\n");
     out.push_str(&format!(
         "Apply gain/offset to OK and defect frames after calibrating on nominal OK light. \
@@ -242,9 +320,13 @@ Feature extractor: **{}**.\n\n",
     out.push_str("| gain | offset | OK score | OK verdict | defect score | defect verdict |\n");
     out.push_str("|-----:|-------:|---------:|:----------:|-------------:|:--------------:|\n");
 
-    let model = calibrate(&ok_frames(20), cfg).unwrap();
-    let ok_base = ok_surface(123);
-    let ng_base = defect_surface(0);
+    let model = calibrate(&ctx.ok_frames(20).unwrap(), cfg).unwrap();
+    let ok_base = if let Ok(ok) = ctx.ok_frames(1) {
+        ok[0].0.clone()
+    } else {
+        ok_surface(123)
+    };
+    let ng_base = ctx.reference_defect();
     for &(gain, offset) in &[
         (1.0f32, 0.0f32),
         (1.0, -30.0),
@@ -255,8 +337,8 @@ Feature extractor: **{}**.\n\n",
     ] {
         let ok = apply_illumination(&ok_base, gain, offset);
         let ng = apply_illumination(&ng_base, gain, offset);
-        let ok_r = model.score(&ok, WIDTH, HEIGHT).unwrap();
-        let ng_r = model.score(&ng, WIDTH, HEIGHT).unwrap();
+        let ok_r = model.score(&ok, ctx.width, ctx.height).unwrap();
+        let ng_r = model.score(&ng, ctx.width, ctx.height).unwrap();
         out.push_str(&format!(
             "| {:.1} | {:+.0} | {:.5} | {} | {:.5} | {} |\n",
             gain,
@@ -279,12 +361,7 @@ Feature extractor: **{}**.\n\n",
 }
 
 /// Labeled synthetic test set: `(frame, is_defect)`.
-///
-/// Deliberately includes hard cases on both sides so the trade-off is real:
-/// OK frames range from nominal (±3 DN, as calibrated) to noisier than the
-/// calibration set saw (up to ±10 DN), and defects span from near the noise
-/// floor (tiny, ~10 DN contrast) to strong, across positions.
-fn labeled_test_set() -> Vec<(Vec<u8>, bool)> {
+fn labeled_test_set_synthetic() -> Vec<(Vec<u8>, bool)> {
     let mut set = Vec::new();
     // 40 nominal OK + 20 noisier-than-calibration OK.
     for seed in 2000..2040u64 {
@@ -308,6 +385,26 @@ fn labeled_test_set() -> Vec<(Vec<u8>, bool)> {
         }
     }
     set
+}
+
+fn labeled_test_set(ctx: &FrameCtx) -> Vec<(Vec<u8>, bool)> {
+    if let Some(root) = &ctx.fixture_root {
+        let mut set = Vec::new();
+        if let Ok(ok) = load_ok_frames(root, ctx.width, ctx.height) {
+            for (f, _, _) in ok {
+                set.push((f, false));
+            }
+        }
+        if let Ok(def) = load_defect_frames(root, ctx.width, ctx.height) {
+            for (f, _, _) in def {
+                set.push((f, true));
+            }
+        }
+        if !set.is_empty() {
+            return set;
+        }
+    }
+    labeled_test_set_synthetic()
 }
 
 struct Confusion {
@@ -365,24 +462,22 @@ impl Confusion {
     }
 }
 
-fn report_errors(cfg: &CalibrateConfig) -> String {
-    let model = calibrate(&ok_frames(20), cfg).unwrap();
-    let test = labeled_test_set();
+fn report_errors(cfg: &CalibrateConfig, ctx: &FrameCtx) -> String {
+    let model = calibrate(&ctx.ok_frames(20).unwrap(), cfg).unwrap();
+    let test = labeled_test_set(ctx);
     let n_ok = test.iter().filter(|(_, d)| !*d).count();
     let n_ng = test.len() - n_ok;
     let scored: Vec<(f32, bool)> = test
         .iter()
-        .map(|(f, d)| (model.score(f, WIDTH, HEIGHT).unwrap().score, *d))
+        .map(|(f, d)| (model.score(f, ctx.width, ctx.height).unwrap().score, *d))
         .collect();
 
     let mut out = String::from("## False-positive / miss rate\n\n");
     out.push_str(&format!(
-        "Feature extractor: **{}**. Test set: {n_ok} OK ({} nominal + {} noisier than \
-calibration) + {n_ng} defect frames (contrast 130–235 DN, size 2–8 px, varied position). \
-Calibrated on 20 nominal OK frames only.\n\n",
+        "Feature extractor: **{}**. Test set: {n_ok} OK + {n_ng} defect frames. \
+Calibrated on 20 OK frames from {}.\n\n",
         extractor_label(&cfg.extractor),
-        n_ok - 20,
-        20
+        ctx.data_source_label()
     ));
 
     // Operating point at the calibrated threshold.
@@ -430,24 +525,41 @@ line's target miss-rate.\n\n",
 fn cmd_report(args: &[String]) -> Result<(), String> {
     let kind = args.first().map(String::as_str).unwrap_or("all");
     let cfg = config_from_args(args);
+    let mut ctx = FrameCtx::from_args(args);
+    if ctx.fixture_root.is_none() {
+        let root = default_bench_root();
+        if bench_root_exists(&root) {
+            ctx.fixture_root = Some(root);
+        }
+    }
     let mut out = String::from("# Anomaly detection reports\n\n");
-    out.push_str(
-        "_Generated by `sfi-anomaly report` (synthetic frames; replace with bench-rig data)._\n\n",
-    );
+    out.push_str(&format!(
+        "_Generated by `sfi-anomaly report`. Data source: **{}**._\n\n",
+        ctx.data_source_label()
+    ));
     match kind {
-        "changeover" => out.push_str(&report_changeover(&cfg)),
-        "latency" => out.push_str(&report_latency(&cfg)),
-        "illum" => out.push_str(&report_illum(&cfg)),
-        "errors" => out.push_str(&report_errors(&cfg)),
+        "changeover" => out.push_str(&report_changeover(&cfg, &ctx)),
+        "latency" => out.push_str(&report_latency(&cfg, &ctx)),
+        "illum" => out.push_str(&report_illum(&cfg, &ctx)),
+        "errors" => out.push_str(&report_errors(&cfg, &ctx)),
         "all" => {
-            out.push_str(&report_changeover(&cfg));
-            out.push_str(&report_latency(&cfg));
-            out.push_str(&report_illum(&cfg));
-            out.push_str(&report_errors(&cfg));
+            out.push_str(&report_changeover(&cfg, &ctx));
+            out.push_str(&report_latency(&cfg, &ctx));
+            out.push_str(&report_illum(&cfg, &ctx));
+            out.push_str(&report_errors(&cfg, &ctx));
         }
         other => return Err(format!("unknown report: {other}")),
     }
     print!("{out}");
+    Ok(())
+}
+
+fn cmd_gen_fixtures(args: &[String]) -> Result<(), String> {
+    let root = arg_value(args, "--out")
+        .map(PathBuf::from)
+        .unwrap_or_else(default_bench_root);
+    write_synthetic_bench_tree(&root).map_err(|e| e.to_string())?;
+    eprintln!("wrote bench fixtures -> {}", root.display());
     Ok(())
 }
 
@@ -460,13 +572,15 @@ fn main() {
         "score" => cmd_score(rest),
         "dump" => cmd_dump(rest),
         "report" => cmd_report(rest),
+        "gen-fixtures" => cmd_gen_fixtures(rest),
         "" | "-h" | "--help" => {
             eprintln!(
-                "usage: sfi-anomaly <calibrate|score|dump|report> ...\n\
-                 calibrate --ok N --out model.json [--extractor handcrafted|onnx[:model.onnx]]\n\
+                "usage: sfi-anomaly <calibrate|score|dump|report|gen-fixtures> ...\n\
+                 calibrate --ok N --out model.json [--from-dir DIR] [--fixture-root ROOT] [--width W --height H]\n\
                  score --model model.json [--defect]\n\
                  dump --kind ok|ng --out frame.gray8\n\
-                 report changeover|latency|illum|errors|all [--extractor handcrafted|onnx[:model.onnx]]"
+                 report changeover|latency|illum|errors|all [--fixture-root ROOT]\n\
+                 gen-fixtures [--out tools/fixtures/bench]"
             );
             return;
         }
@@ -495,7 +609,7 @@ mod tests {
 
     #[test]
     fn test_set_is_balanced_and_labeled() {
-        let set = labeled_test_set();
+        let set = labeled_test_set_synthetic();
         let ok = set.iter().filter(|(_, d)| !*d).count();
         let ng = set.len() - ok;
         assert_eq!(ok, 60);
@@ -504,8 +618,9 @@ mod tests {
 
     #[test]
     fn calibrated_threshold_catches_most_defects() {
-        let model = calibrate(&ok_frames(20), &config_from_args(&[])).unwrap();
-        let scored: Vec<(f32, bool)> = labeled_test_set()
+        let ctx = FrameCtx::from_args(&[]);
+        let model = calibrate(&ctx.ok_frames(20).unwrap(), &config_from_args(&[])).unwrap();
+        let scored: Vec<(f32, bool)> = labeled_test_set_synthetic()
             .iter()
             .map(|(f, d)| (model.score(f, WIDTH, HEIGHT).unwrap().score, *d))
             .collect();

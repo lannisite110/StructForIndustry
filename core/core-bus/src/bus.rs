@@ -125,9 +125,12 @@ impl CoreBus {
     }
 
     pub fn with_profile(self, profile: Arc<ProfileStore>) -> Self {
-        let window = profile.params().spc_window as usize;
+        let snap = profile.snapshot();
+        let window = snap.spc.window_size as usize;
+        let limits = snap.spc.limits.clone();
+        let hist_bins = snap.spc.histogram_bins as usize;
         Self {
-            spc: SpcEngine::new(window),
+            spc: SpcEngine::with_config(window, limits, hist_bins),
             profile: Some(profile),
             ..self
         }

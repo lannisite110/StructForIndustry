@@ -40,8 +40,17 @@ spc:
   windowSize: 32
   persist: true
   persistCapacity: 4096
+  histogramBins: 16
+  limits:
+    metric: gray_mean
+    usl: 140
+    lsl: 100
+    target: 120
   metrics:
     - gray_mean
+    - gray_mean_std
+    - cp
+    - cpk
     - ng_rate
 
 mes:
