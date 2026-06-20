@@ -11,9 +11,14 @@ license = "Apache-2.0"
 name = "sfi-ai-infer"
 path = "src/main.rs"
 
+[features]
+default = []
+onnx = ["dep:ort"]
+
 [dependencies]
 sfi-plugin-host = { path = "../../core/plugin-host" }
 serde_json = "1"
+ort = { version = "2", optional = true, default-features = false, features = ["load-dynamic"] }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"

@@ -1,6 +1,7 @@
 //! Plugin runtime — in-process and out-of-process (apiVersion 0).
 
 mod in_process;
+mod mock_ai_infer;
 mod mock_defect_detect;
 mod mock_vision;
 mod out_process;
@@ -9,6 +10,7 @@ pub mod shm_gray8;
 mod supervisor;
 
 pub use in_process::{InProcessPlugin, LoadError, PluginInfo, ProcessError};
+pub use mock_ai_infer::{mock_infer_response, run_mock_ai_infer_sidecar};
 pub use mock_defect_detect::run_mock_defect_detect_sidecar;
 pub use mock_vision::{encode_framed_response, run_mock_vision_sidecar};
 pub use out_process::{

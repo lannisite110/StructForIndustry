@@ -53,6 +53,7 @@ impl SchedulerConfig {
         self.task_type = resolve_task_type(&p.plugin_name, &p.task_type);
         if p.plugin_name == "ai-infer" {
             self.vision_socket = std::env::var("SFI_INFER_SOCKET")
+                .or_else(|_| std::env::var("SFI_VISION_PLUGIN_SOCKET"))
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| infer_socket_default());
         }

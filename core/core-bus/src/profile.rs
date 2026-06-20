@@ -339,6 +339,15 @@ mod tests {
     }
 
     #[test]
+    fn loads_line_infer_profile() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = root.join("domains/industrial-inspection/profiles/line-infer.yaml");
+        let store = ProfileStore::load(path).expect("load");
+        assert_eq!(store.params().plugin_name, "ai-infer");
+        assert_eq!(store.params().task_type, "infer.onnx");
+    }
+
+    #[test]
     fn audit_logs_threshold_change() {
         let dir = tempfile::tempdir().unwrap();
         let profile_path = dir.path().join("profile.yaml");

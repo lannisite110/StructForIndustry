@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -99,6 +100,7 @@ pub async fn run_http_server(config: &BusConfig, bus: &CoreBus) -> std::io::Resu
         .route("/spc/metrics", get(spc_metrics))
         .route("/spc/trend", get(spc_trend))
         .route("/metrics", get(prometheus_metrics))
+        .route("/frames/{*rest}", get(get_frame))
         .route("/", get(crate::ui::aoi_dashboard))
         .with_state(state);
 
@@ -198,4 +200,24 @@ async fn prometheus_metrics(State(state): State<HttpState>) -> (axum::http::Stat
     let sched = state.scheduler_stats.as_ref().map(|s| s.snapshot());
     let body = crate::metrics::render_prometheus(&snap, sched.as_ref());
     (axum::http::StatusCode::OK, body)
+}
+
+async fn get_frame(
+    axum::extract::Path(rest): axum::extract::Path<String>,
+) -> Result<Response, StatusCode> {
+    if rest.contains("..") {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let rel = rest.strip_prefix("frames/").unwrap_or(rest.as_str());
+    let base = crate::frame_store::frame_dir();
+    let path = base.join(rel);
+    if !path.starts_with(&base) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let bytes = std::fs::read(&path).map_err(|_| StatusCode::NOT_FOUND)?;
+    Ok((
+        [(header::CONTENT_TYPE, "application/octet-stream")],
+        bytes,
+    )
+        .into_response())
 }

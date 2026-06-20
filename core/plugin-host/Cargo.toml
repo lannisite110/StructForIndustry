@@ -13,6 +13,10 @@ path = "src/bin/sfi-mock-vision.rs"
 name = "sfi-mock-defect-detect"
 path = "src/bin/sfi-mock-defect-detect.rs"
 
+[[bin]]
+name = "sfi-mock-ai-infer"
+path = "src/bin/sfi-mock-ai-infer.rs"
+
 [dependencies]
 capnp = { workspace = true }
 libc = "0.2"

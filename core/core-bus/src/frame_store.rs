@@ -40,7 +40,7 @@ impl FrameArchive {
         let path = self.dir.join(&name);
         fs::write(&path, &pixels).ok()?;
         self.prune_old();
-        Some(format!("frames/{}", name))
+        Some(name)
     }
 
     fn prune_old(&self) {
@@ -127,11 +127,7 @@ mod tests {
         .unwrap();
         let rel = archive.archive(&notify).expect("archive");
         assert!(rel.contains("99-"));
-        assert!(dir
-            .path()
-            .join("frames")
-            .join(rel.strip_prefix("frames/").unwrap())
-            .exists());
+        assert!(dir.path().join("frames").join(&rel).exists());
         std::env::remove_var("SFI_DATA_DIR");
     }
 }

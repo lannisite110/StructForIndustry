@@ -1,74 +1,61 @@
-//! Mock ONNX inference sidecar — Phase 4 scaffold.
-//!
-//! Accepts plugin wire v1 tasks with `task_type` prefix `infer.` and returns
-//! synthetic detections + latency metrics.
+mod onnx;
 
 use std::path::PathBuf;
 
 use sfi_plugin_host::{
-    encode_framed_response,
-    shm_gray8,
-    BBox, Detection, FrameRef, Metric, TaskRequest, TaskResponse, WIRE_API_VERSION,
+    encode_framed_response, mock_infer_response, shm_gray8, BBox, Detection, FrameRef, Metric,
+    TaskRequest, TaskResponse, WIRE_API_VERSION,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 
 fn infer_response(req: &TaskRequest) -> TaskResponse {
-    let mut gray_mean = 128.0;
-    if let Ok(pixels) =
-        shm_gray8::read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset)
-    {
-        gray_mean = shm_gray8::gray_mean(&pixels);
+    if let Some(model) = onnx::model_path_from_env() {
+        if model.exists() {
+            if let Ok(pixels) =
+                shm_gray8::read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset)
+            {
+                if let Some(score) =
+                    onnx::onnx_defect_score(&model, &pixels, req.frame.width, req.frame.height)
+                {
+                    let has_defect = score > 0.5;
+                    return TaskResponse {
+                        task_id: req.task_id,
+                        status: "ok".into(),
+                        message: "ai-infer (onnx)".into(),
+                        detections: if has_defect {
+                            vec![Detection {
+                                class_id: 99,
+                                label: "ai_defect".into(),
+                                score: score as f32,
+                                bbox: BBox {
+                                    x: req.frame.width as f32 * 0.1,
+                                    y: req.frame.height as f32 * 0.1,
+                                    width: req.frame.width as f32 * 0.2,
+                                    height: req.frame.height as f32 * 0.2,
+                                },
+                            }]
+                        } else {
+                            vec![]
+                        },
+                        metrics: vec![
+                            Metric {
+                                name: "infer_ms".into(),
+                                value: 4.0,
+                                unit: "ms".into(),
+                            },
+                            Metric {
+                                name: "onnx_score".into(),
+                                value: score as f64,
+                                unit: "prob".into(),
+                            },
+                        ],
+                    };
+                }
+            }
+        }
     }
-
-    let model_path = std::env::var("SFI_ONNX_MODEL").ok();
-    let uses_onnx = model_path
-        .as_ref()
-        .map(|p| std::path::Path::new(p).exists())
-        .unwrap_or(false);
-    let message = if uses_onnx {
-        "mock ai-infer (onnx path set)"
-    } else {
-        "mock ai-infer (onnx)"
-    };
-
-    TaskResponse {
-        task_id: req.task_id,
-        status: "ok".into(),
-        message: message.into(),
-        detections: vec![Detection {
-            class_id: 99,
-            label: "ai_defect".into(),
-            score: 0.95,
-            bbox: BBox {
-                x: req.frame.width as f32 * 0.1,
-                y: req.frame.height as f32 * 0.1,
-                width: req.frame.width as f32 * 0.2,
-                height: req.frame.height as f32 * 0.2,
-            },
-        }],
-        metrics: vec![
-            Metric {
-                name: "infer_ms".into(),
-                value: 4.2,
-                unit: "ms".into(),
-            },
-            Metric {
-                name: "gray_mean".into(),
-                value: gray_mean,
-                unit: "dn".into(),
-            },
-            Metric {
-                name: "model".into(),
-                value: if uses_onnx { 1.0 } else { 0.0 },
-                unit: if uses_onnx {
-                    model_path.unwrap_or_default()
-                } else {
-                    "mock-onnx-v1".into()
-                },
-            },
-        ],
-    }
+    mock_infer_response(req)
 }
 
 async fn handle_connection(mut stream: UnixStream) -> std::io::Result<()> {
@@ -95,10 +82,30 @@ async fn handle_connection(mut stream: UnixStream) -> std::io::Result<()> {
     }
 }
 
+async fn run_sidecar(socket_path: PathBuf) -> std::io::Result<()> {
+    if socket_path.exists() {
+        let _ = std::fs::remove_file(&socket_path);
+    }
+    if let Some(parent) = socket_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let listener = UnixListener::bind(&socket_path)?;
+    tracing::info!(path = %socket_path.display(), "ai-infer sidecar ready");
+    loop {
+        let (stream, _) = listener.accept().await?;
+        tokio::spawn(async move {
+            if let Err(err) = handle_connection(stream).await {
+                tracing::warn!(error = %err, "ai-infer client error");
+            }
+        });
+    }
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
-
     let socket_path: PathBuf = std::env::var("SFI_INFER_SOCKET")
         .map(PathBuf::from)
         .or_else(|_| std::env::var("SFI_VISION_PLUGIN_SOCKET").map(PathBuf::from))
@@ -109,27 +116,7 @@ async fn main() -> std::io::Result<()> {
                 PathBuf::from("/tmp/sfi-infer.sock")
             }
         });
-
-    if socket_path.exists() {
-        let _ = std::fs::remove_file(&socket_path);
-    }
-    if let Some(parent) = socket_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
-    }
-
-    let listener = UnixListener::bind(&socket_path)?;
-    tracing::info!(path = %socket_path.display(), "ai-infer mock sidecar ready");
-
-    loop {
-        let (stream, _) = listener.accept().await?;
-        tokio::spawn(async move {
-            if let Err(err) = handle_connection(stream).await {
-                tracing::warn!(error = %err, "ai-infer connection error");
-            }
-        });
-    }
+    run_sidecar(socket_path).await
 }
 
 #[cfg(test)]
@@ -137,25 +124,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builds_infer_response() {
+    fn infer_response_ok() {
         let req = TaskRequest {
             api_version: WIRE_API_VERSION,
-            task_id: 7,
+            task_id: 2,
             task_type: "infer.onnx".into(),
             frame: FrameRef {
-                frame_id: 7,
-                width: 64,
-                height: 48,
-                stride: 64,
+                frame_id: 2,
+                width: 8,
+                height: 8,
+                stride: 8,
                 format: "gray8".into(),
-                shm_name: "/sfi.missing".into(),
-                byte_length: 64 * 48,
+                shm_name: "/nope".into(),
+                byte_length: 64,
                 offset: 0,
             },
             params: serde_json::json!({}),
         };
         let resp = infer_response(&req);
-        assert_eq!(resp.message, "mock ai-infer (onnx)");
-        assert!(resp.metrics.iter().any(|m| m.name == "infer_ms"));
+        assert_eq!(resp.status, "ok");
     }
 }

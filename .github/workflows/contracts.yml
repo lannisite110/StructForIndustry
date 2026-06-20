@@ -61,8 +61,11 @@ jobs:
 
       - name: 1080p bench report
         run: |
-          chmod +x tools/scripts/bench-1080p-report.sh
+          chmod +x tools/scripts/bench-1080p-report.sh tools/scripts/ai-infer-e2e.sh
           ./tools/scripts/bench-1080p-report.sh bench-1080p.json
+
+      - name: ai-infer E2E
+        run: ./tools/scripts/ai-infer-e2e.sh
 
       - uses: goto-bus-stop/setup-zig@v2
         with:
