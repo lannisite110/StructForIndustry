@@ -16,6 +16,15 @@ cargo fmt --all -- --check
 echo "== cargo clippy =="
 cargo clippy --workspace --all-targets -- -D warnings
 
+echo "== hal-ext crates fmt + clippy =="
+for c in line-frame line-publisher plc-trigger v4l2-capture gige-capture \
+         modbus-plc-trigger opcua-plc-trigger mindvision-capture; do
+  mf="domains/industrial-inspection/hal-ext/$c/Cargo.toml"
+  echo "-- $c"
+  cargo fmt --manifest-path "$mf" -- --check
+  cargo clippy --manifest-path "$mf" --all-targets -- -D warnings
+done
+
 echo "== 1080p bench =="
 ./tools/scripts/bench-1080p.sh
 ./tools/scripts/bench-1080p-report.sh /tmp/sfi-bench-1080p.json

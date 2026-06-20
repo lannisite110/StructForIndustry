@@ -56,6 +56,15 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: hal-ext crates fmt + clippy
+        run: |
+          for c in line-frame line-publisher plc-trigger v4l2-capture gige-capture \
+                   modbus-plc-trigger opcua-plc-trigger mindvision-capture; do
+            mf="domains/industrial-inspection/hal-ext/$c/Cargo.toml"
+            cargo fmt --manifest-path "$mf" -- --check
+            cargo clippy --manifest-path "$mf" --all-targets -- -D warnings
+          done
+
       - name: 1080p bench smoke
         run: ./tools/scripts/bench-1080p.sh
 

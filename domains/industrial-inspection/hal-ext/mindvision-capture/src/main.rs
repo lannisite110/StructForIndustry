@@ -36,7 +36,9 @@ fn load_config() -> MindVisionConfig {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(0),
-        serial: std::env::var("SFI_MINDVISION_SN").ok().filter(|s| !s.is_empty()),
+        serial: std::env::var("SFI_MINDVISION_SN")
+            .ok()
+            .filter(|s| !s.is_empty()),
         width: std::env::var("SFI_MINDVISION_WIDTH")
             .ok()
             .and_then(|v| v.parse().ok())

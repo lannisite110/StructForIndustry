@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use gige::{open_backend, GigEConfig, GigEBackend};
+use gige::{open_backend, GigEBackend, GigEConfig};
 use sfi_core_bus::HalPublisher;
 use sfi_line_frame::{build_notify_layout, map_shm, Gray8Layout};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

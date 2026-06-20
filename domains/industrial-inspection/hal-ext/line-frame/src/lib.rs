@@ -43,8 +43,8 @@ pub fn byte_length() -> usize {
 pub fn shm_file_path(name: &str) -> PathBuf {
     if name.starts_with("/dev/shm/") {
         PathBuf::from(name)
-    } else if name.starts_with('/') {
-        PathBuf::from(format!("/dev/shm/{}", &name[1..]))
+    } else if let Some(rest) = name.strip_prefix('/') {
+        PathBuf::from(format!("/dev/shm/{rest}"))
     } else {
         PathBuf::from(format!("/dev/shm/{name}"))
     }

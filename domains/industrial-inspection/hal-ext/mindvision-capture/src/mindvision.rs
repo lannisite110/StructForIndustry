@@ -115,30 +115,45 @@ mod windows_sdk {
             unsafe {
                 Ok(Self {
                     camera_sdk_init: *load_sym::<unsafe extern "system" fn(i32) -> i32>(
-                        &lib, "CameraSdkInit",
+                        &lib,
+                        "CameraSdkInit",
                     )?,
                     camera_enumerate_device: *load_sym::<
                         unsafe extern "system" fn(*mut tSdkCameraDevInfo, *mut i32) -> i32,
                     >(&lib, "CameraEnumerateDevice")?,
                     camera_init: *load_sym::<
-                        unsafe extern "system" fn(*mut tSdkCameraDevInfo, i32, i32, *mut i32) -> i32,
+                        unsafe extern "system" fn(
+                            *mut tSdkCameraDevInfo,
+                            i32,
+                            i32,
+                            *mut i32,
+                        ) -> i32,
                     >(&lib, "CameraInit")?,
-                    camera_set_isp_out_format: *load_sym::<unsafe extern "system" fn(i32, u32) -> i32>(
-                        &lib,
-                        "CameraSetIspOutFormat",
+                    camera_set_isp_out_format: *load_sym::<
+                        unsafe extern "system" fn(i32, u32) -> i32,
+                    >(
+                        &lib, "CameraSetIspOutFormat"
                     )?,
                     camera_play: *load_sym::<unsafe extern "system" fn(i32) -> i32>(
-                        &lib, "CameraPlay",
+                        &lib,
+                        "CameraPlay",
                     )?,
                     camera_get_image_buffer: *load_sym::<
-                        unsafe extern "system" fn(i32, *mut tSdkFrameHead, *mut *mut u8, u32) -> i32,
+                        unsafe extern "system" fn(
+                            i32,
+                            *mut tSdkFrameHead,
+                            *mut *mut u8,
+                            u32,
+                        ) -> i32,
                     >(&lib, "CameraGetImageBuffer")?,
-                    camera_release_image_buffer: *load_sym::<unsafe extern "system" fn(i32, *mut u8) -> i32>(
-                        &lib,
-                        "CameraReleaseImageBuffer",
+                    camera_release_image_buffer: *load_sym::<
+                        unsafe extern "system" fn(i32, *mut u8) -> i32,
+                    >(
+                        &lib, "CameraReleaseImageBuffer"
                     )?,
                     camera_un_init: *load_sym::<unsafe extern "system" fn(i32) -> i32>(
-                        &lib, "CameraUnInit",
+                        &lib,
+                        "CameraUnInit",
                     )?,
                     _lib: lib,
                 })
@@ -159,7 +174,11 @@ mod windows_sdk {
     }
 
     fn cstr_field(buf: &[i8]) -> String {
-        let bytes: Vec<u8> = buf.iter().map(|&c| c as u8).take_while(|&b| b != 0).collect();
+        let bytes: Vec<u8> = buf
+            .iter()
+            .map(|&c| c as u8)
+            .take_while(|&b| b != 0)
+            .collect();
         String::from_utf8_lossy(&bytes).into_owned()
     }
 
@@ -186,20 +205,22 @@ mod windows_sdk {
                 return Err("no MindVision camera found".into());
             }
 
-            let mut devices = vec![tSdkCameraDevInfo {
-                ac_product_series: [0; 32],
-                ac_product_name: [0; 32],
-                ac_friendly_name: [0; 32],
-                ac_link_name: [0; 32],
-                ac_driver_version: [0; 32],
-                ac_sensor_type: [0; 32],
-                ac_port_type: [0; 32],
-                ac_sn: [0; 32],
-                u_instance: 0,
-            }; count as usize];
+            let mut devices = vec![
+                tSdkCameraDevInfo {
+                    ac_product_series: [0; 32],
+                    ac_product_name: [0; 32],
+                    ac_friendly_name: [0; 32],
+                    ac_link_name: [0; 32],
+                    ac_driver_version: [0; 32],
+                    ac_sensor_type: [0; 32],
+                    ac_port_type: [0; 32],
+                    ac_sn: [0; 32],
+                    u_instance: 0,
+                };
+                count as usize
+            ];
 
-            let status =
-                unsafe { (api.camera_enumerate_device)(devices.as_mut_ptr(), &mut count) };
+            let status = unsafe { (api.camera_enumerate_device)(devices.as_mut_ptr(), &mut count) };
             if status != CAMERA_STATUS_SUCCESS {
                 return Err(format!("CameraEnumerateDevice failed: {status}"));
             }

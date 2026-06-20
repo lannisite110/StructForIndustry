@@ -188,9 +188,8 @@ mod linux {
             };
 
             unsafe {
-                vidioc_dqbuf(self.fd, &mut buf).map_err(|e| {
-                    io::Error::other(format!("VIDIOC_DQBUF: {e}"))
-                })?;
+                vidioc_dqbuf(self.fd, &mut buf)
+                    .map_err(|e| io::Error::other(format!("VIDIOC_DQBUF: {e}")))?;
             }
 
             let mapped = &self.buffers[buf.index as usize];
@@ -208,9 +207,8 @@ mod linux {
             }
 
             unsafe {
-                vidioc_qbuf(self.fd, &mut buf).map_err(|e| {
-                    io::Error::other(format!("VIDIOC_QBUF: {e}"))
-                })?;
+                vidioc_qbuf(self.fd, &mut buf)
+                    .map_err(|e| io::Error::other(format!("VIDIOC_QBUF: {e}")))?;
             }
 
             Ok(CapturedFrame { pixels })
@@ -224,11 +222,7 @@ mod linux {
         }
     }
 
-    fn negotiate_format(
-        fd: i32,
-        req_w: u32,
-        req_h: u32,
-    ) -> io::Result<(PixelFormat, Gray8Layout)> {
+    fn negotiate_format(fd: i32, req_w: u32, req_h: u32) -> io::Result<(PixelFormat, Gray8Layout)> {
         if let Ok(layout) = try_format(fd, req_w, req_h, PIX_GREY) {
             return Ok((PixelFormat::Gray8, layout));
         }
@@ -287,9 +281,8 @@ mod linux {
             reserved: [0],
         };
         unsafe {
-            vidioc_reqbufs(fd, &mut req).map_err(|e| {
-                io::Error::other(format!("VIDIOC_REQBUFS: {e}"))
-            })?;
+            vidioc_reqbufs(fd, &mut req)
+                .map_err(|e| io::Error::other(format!("VIDIOC_REQBUFS: {e}")))?;
         }
         if req.count == 0 {
             return Err(io::Error::other("VIDIOC_REQBUFS returned zero buffers"));
@@ -322,9 +315,8 @@ mod linux {
                 request_fd: 0,
             };
             unsafe {
-                vidioc_querybuf(fd, &mut buf).map_err(|e| {
-                    io::Error::other(format!("VIDIOC_QUERYBUF: {e}"))
-                })?;
+                vidioc_querybuf(fd, &mut buf)
+                    .map_err(|e| io::Error::other(format!("VIDIOC_QUERYBUF: {e}")))?;
             }
 
             let mmap = unsafe {
@@ -336,9 +328,8 @@ mod linux {
             .map_err(|e| io::Error::other(e.to_string()))?;
 
             unsafe {
-                vidioc_qbuf(fd, &mut buf).map_err(|e| {
-                    io::Error::other(format!("VIDIOC_QBUF: {e}"))
-                })?;
+                vidioc_qbuf(fd, &mut buf)
+                    .map_err(|e| io::Error::other(format!("VIDIOC_QBUF: {e}")))?;
             }
 
             buffers.push(MappedBuffer {

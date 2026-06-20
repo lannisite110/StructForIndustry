@@ -8,7 +8,7 @@ RUN_DIR="${XDG_RUNTIME_DIR:-/tmp}/sfi-mindvision-e2e"
 mkdir -p "$RUN_DIR"
 BUS_SOCK="$RUN_DIR/bus.sock"
 VISION_SOCK="$RUN_DIR/vision.sock"
-HTTP_ADDR="127.0.0.1:18189"
+HTTP_ADDR="127.0.0.1:18190"
 SHM_NAME="sfi.mindvision.e2e"
 PROFILE="$ROOT/domains/industrial-inspection/profiles/lab-batch.yaml"
 

@@ -46,7 +46,7 @@ impl GigEBackend for MockGigEBackend {
 
     fn grab(&mut self, frame_index: u64) -> Result<GigEFrame, String> {
         let mut pixels = vec![0u8; self.layout.byte_length()];
-        fill_frame(&mut pixels, frame_index, frame_index % 3 == 0);
+        fill_frame(&mut pixels, frame_index, frame_index.is_multiple_of(3));
         Ok(GigEFrame { pixels })
     }
 }

@@ -1,5 +1,5 @@
-mod modbus;
 mod frame_source;
+mod modbus;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -54,7 +54,11 @@ async fn main() -> std::io::Result<()> {
             let (layout, byte_len) = frame_source.fill_and_layout(id)?;
             let notify = build_notify_layout(id, &shm_name, layout, byte_len);
             publisher.publish(&notify).await?;
-            tracing::info!(frame_id = id, v4l2 = frame_source.uses_v4l2(), "Modbus rising edge → HAL");
+            tracing::info!(
+                frame_id = id,
+                v4l2 = frame_source.uses_v4l2(),
+                "Modbus rising edge → HAL"
+            );
         }
         prev = coil;
         sleep(poll).await;
