@@ -84,7 +84,9 @@ jobs:
 
       - name: gige + modbus E2E
         run: |
+          chmod +x tools/scripts/mindvision-capture-e2e.sh
           ./tools/scripts/gige-capture-e2e.sh
+          ./tools/scripts/mindvision-capture-e2e.sh
           ./tools/scripts/modbus-plc-e2e.sh
           ./tools/scripts/opcua-plc-e2e.sh
           SFI_V4L2_DEVICE=/dev/video42 ./tools/scripts/modbus-v4l2-e2e.sh

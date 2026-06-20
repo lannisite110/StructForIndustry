@@ -1,0 +1,23 @@
+[workspace]
+
+[package]
+name = "sfi-mindvision-capture"
+version = "0.0.1"
+description = "MindVision industrial camera capture — Windows SDK + mock HAL publish"
+edition = "2021"
+license = "Apache-2.0"
+
+[[bin]]
+name = "sfi-mindvision-capture"
+path = "src/main.rs"
+
+[dependencies]
+memmap2 = "0.9"
+sfi-core-bus = { path = "../../../../core/core-bus" }
+sfi-line-frame = { path = "../line-frame" }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+libloading = "0.8"

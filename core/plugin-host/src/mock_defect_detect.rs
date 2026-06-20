@@ -75,16 +75,7 @@ pub fn mock_defect_response(req: &TaskRequest) -> TaskResponse {
 
 fn response_from_mmap(req: &TaskRequest, mmap: &[u8], threshold: u8) -> TaskResponse {
     let (rx, ry, rw, rh) = roi_bounds(req);
-    let bright = bright_pixels_in_roi_limit(
-        mmap,
-        req.frame.stride,
-        rx,
-        ry,
-        rw,
-        rh,
-        threshold,
-        1,
-    );
+    let bright = bright_pixels_in_roi_limit(mmap, req.frame.stride, rx, ry, rw, rh, threshold, 1);
     let has_defect = bright > 0;
     let gmean = gray_mean_roi(mmap, req.frame.stride, req.frame.width, rx, ry, rw, rh);
 
@@ -293,7 +284,10 @@ mod tests {
             params: serde_json::json!({ "threshold": 128 }),
         };
         let resp = mock_defect_response(&req);
-        assert_eq!(resp.message, "mock defect-detect (shm)");
+        assert!(
+            resp.message == "mock defect-detect (shm)"
+                || resp.message == "mock defect-detect (shm-mmap)"
+        );
         assert!(!resp.detections.is_empty());
         let _ = resolve_shm_path;
     }

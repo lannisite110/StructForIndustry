@@ -13,6 +13,7 @@ Phase 3 stack for AOI line: simulation + **real V4L2 USB capture**.
 | **`sfi-gige-capture`** | **GigE / GenICam scaffold (mock + SDK hook)** |
 | **`sfi-modbus-plc-trigger`** | **Modbus TCP coil rising edge → HAL frame** |
 | **`sfi-opcua-plc-trigger`** | **OPC-UA boolean rising edge → HAL frame (mock + client hook)** |
+| **`sfi-mindvision-capture`** | **MindVision MVCAMSDK — Windows SDK + mock HAL publish** |
 
 ## V4L2 capture (real hardware)
 
@@ -103,6 +104,44 @@ SFI_OPCUA_MOCK=1 \
 
 Keep **`SFI_GIGE_MOCK=1`** (default). The real path is `SdkGigEBackend` in `gige-capture/src/gige.rs`, which returns a clear error until a Basler/Hikvision/GenICam SDK is linked. CI and lab workflows do not need hardware.
 
+## MindVision capture (Windows SDK)
+
+Loads `MVCAMSDK_X64.dll` (default `C:\Windows\System32\MVCAMSDK_X64.dll`) on Windows. Linux/WSL CI uses mock (`SFI_MINDVISION_MOCK=1`).
+
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `SFI_MINDVISION_MOCK` | `1` on Linux, `0` on Windows | Mock pattern backend |
+| `SFI_MINDVISION_INDEX` | `0` | Camera index from enumerate |
+| `SFI_MINDVISION_SN` | — | Pick camera by serial (overrides index) |
+| `SFI_MINDVISION_WIDTH` / `HEIGHT` | `640` / `480` | Requested size (mock); real size from frame |
+| `SFI_MINDVISION_FPS` / `FRAMES` | `10` / `0` | Freerun rate / limit |
+| `SFI_MINDVISION_MODE` | `freerun` | `freerun` or `trigger` |
+| `SFI_MINDVISION_SDK_DLL` | `C:\Windows\System32\MVCAMSDK_X64.dll` | Override DLL path |
+
+**Windows + real camera:**
+
+```powershell
+# Terminal 1 — bus
+$env:SFI_PROFILE="domains/industrial-inspection/profiles/lab-batch.yaml"
+$env:SFI_SCHEDULER="1"
+cargo run -p sfi-core-bus --bin sfi-bus
+
+# Terminal 2 — vision mock
+cargo run -p sfi-plugin-host --bin sfi-mock-defect-detect
+
+# Terminal 3 — MindVision (USB/GigE camera connected)
+$env:SFI_MINDVISION_MOCK="0"
+$env:SFI_MINDVISION_FRAMES="20"
+cargo run --manifest-path domains/industrial-inspection/hal-ext/mindvision-capture/Cargo.toml
+```
+
+**WSL / Linux mock E2E:**
+
+```bash
+./tools/scripts/mindvision-capture-e2e.sh
+./tools/scripts/local-contracts-smoke.sh   # mirrors GitHub contracts CI
+```
+
 ## PLC trigger protocol
 
 Connect to `$SFI_PLC_SOCKET` (default `$XDG_RUNTIME_DIR/sfi-plc.sock`):
@@ -147,6 +186,7 @@ cargo test -p sfi-core-bus shm_defect_e2e
 ./tools/scripts/v4l2-capture-e2e.sh # skips if no /dev/video42 (use setup-v4l2loopback.sh)
 ./tools/scripts/v4l2-trigger-e2e.sh # V4L2 + TRIG socket
 ./tools/scripts/gige-capture-e2e.sh # mock GigE
+./tools/scripts/mindvision-capture-e2e.sh # mock MindVision
 ./tools/scripts/modbus-plc-e2e.sh     # mock Modbus coil
 ./tools/scripts/modbus-v4l2-e2e.sh    # Modbus + v4l2loopback (skips if no /dev/video42)
 ./tools/scripts/opcua-plc-e2e.sh      # mock OPC-UA rising edge

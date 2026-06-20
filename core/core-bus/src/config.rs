@@ -215,9 +215,5 @@ async fn get_frame(
         return Err(StatusCode::FORBIDDEN);
     }
     let bytes = std::fs::read(&path).map_err(|_| StatusCode::NOT_FOUND)?;
-    Ok((
-        [(header::CONTENT_TYPE, "application/octet-stream")],
-        bytes,
-    )
-        .into_response())
+    Ok(([(header::CONTENT_TYPE, "application/octet-stream")], bytes).into_response())
 }

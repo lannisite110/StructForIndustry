@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use sfi_core_bus::{
     frame_dir, run_hal_listener, BusConfig, CoreBus, FrameArchive, HalFrameNotify, HalPublisher,
-    POOL_ID_LEN, ProfileStore, SHM_NAME_LEN, SOURCE_ID_LEN, SchedulerConfig, SpcStore,
-    TaskScheduler,
+    ProfileStore, SchedulerConfig, SpcStore, TaskScheduler, POOL_ID_LEN, SHM_NAME_LEN,
+    SOURCE_ID_LEN,
 };
 use sfi_plugin_host::{run_mock_ai_infer_sidecar, shm_gray8};
 use tempfile::tempdir;
@@ -17,7 +17,10 @@ async fn line_infer_profile_routes_to_ai_sidecar() {
     std::env::set_var("SFI_DATA_DIR", dir.path());
     let bus_socket = dir.path().join("bus.sock");
     let infer_socket = dir.path().join("infer.sock");
-    let shm_tag = format!("sfi-ai-e2e-{}", dir.path().file_name().unwrap().to_string_lossy());
+    let shm_tag = format!(
+        "sfi-ai-e2e-{}",
+        dir.path().file_name().unwrap().to_string_lossy()
+    );
     let shm_path = shm_gray8::resolve_shm_path(&format!("/{shm_tag}"));
     let _ = std::fs::remove_file(&shm_path);
     shm_gray8::write_test_pattern(&shm_path, 64, 48, true).expect("write shm");
