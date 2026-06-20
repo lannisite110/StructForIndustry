@@ -9,8 +9,9 @@ use crate::mock_vision::encode_framed_response;
 use crate::plugin_wire::{BBox, Detection, Metric, TaskRequest, TaskResponse};
 use crate::shm_gray8::{
     bright_pixel_count, bright_pixels_in_roi_limit, crop_roi, edge_caliper_horizontal,
-    edge_caliper_vertical, gray_mean, gray_mean_roi, measure_circle_diameter_horizontal,
-    measure_line_width_horizontal, mmap_gray8, read_gray8,
+    edge_caliper_vertical, extract_template, gray_mean, gray_mean_roi,
+    measure_circle_diameter_horizontal, measure_line_width_horizontal, mmap_gray8, ncc_match,
+    ncc_score_at, read_gray8,
 };
 
 pub async fn run_mock_defect_detect_sidecar(socket_path: &Path) -> std::io::Result<()> {
@@ -58,6 +59,9 @@ async fn handle_connection(mut stream: UnixStream) -> std::io::Result<()> {
 }
 
 pub fn mock_defect_response(req: &TaskRequest) -> TaskResponse {
+    if req.task_type.starts_with("vision.inspect.") {
+        return mock_inspect_response(req);
+    }
     if req.task_type.starts_with("vision.measure.") {
         return mock_measure_response(req);
     }
@@ -313,6 +317,165 @@ fn measure_response_from_pixels(req: &TaskRequest, pixels: &[u8], msg: &str) -> 
         };
     }
     measure_error(req, msg, "no edge")
+}
+
+fn inspect_cfg(req: &TaskRequest) -> (u32, u32, u32, u32, u32, u32, u32, u32, f64, f64, f64) {
+    let inspect = req.params.get("inspect");
+    let search = inspect.and_then(|i| i.get("search"));
+    let tpl = inspect.and_then(|i| i.get("template"));
+    let sx0 = search
+        .and_then(|s| s.get("x0"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let sy0 = search
+        .and_then(|s| s.get("y0"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let sx1 = search
+        .and_then(|s| s.get("x1"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let sy1 = search
+        .and_then(|s| s.get("y1"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let tx = tpl
+        .and_then(|t| t.get("x"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let ty = tpl
+        .and_then(|t| t.get("y"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let tw = tpl
+        .and_then(|t| t.get("width"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(16) as u32;
+    let th = tpl
+        .and_then(|t| t.get("height"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(16) as u32;
+    let min_score = inspect
+        .and_then(|i| i.get("minScore"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.8);
+    let expected_x = inspect
+        .and_then(|i| i.get("expectedX"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let expected_y = inspect
+        .and_then(|i| i.get("expectedY"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    (
+        sx0, sy0, sx1, sy1, tx, ty, tw, th, min_score, expected_x, expected_y,
+    )
+}
+
+pub fn mock_inspect_response(req: &TaskRequest) -> TaskResponse {
+    if let Ok(mmap) = mmap_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset) {
+        return inspect_response_from_pixels(req, &mmap, "mock inspect (shm-mmap)");
+    }
+    if let Ok(pixels) = read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset) {
+        return inspect_response_from_pixels(req, &pixels, "mock inspect (shm)");
+    }
+    TaskResponse {
+        task_id: req.task_id,
+        status: "error".into(),
+        message: "mock inspect: no shm".into(),
+        detections: vec![],
+        metrics: vec![],
+    }
+}
+
+fn inspect_response_from_pixels(req: &TaskRequest, pixels: &[u8], msg: &str) -> TaskResponse {
+    let (work, w, h) = apply_roi(req, pixels);
+    let (sx0, sy0, sx1, sy1, tx, ty, tw, th, min_score, expected_x, expected_y) =
+        inspect_cfg(req);
+    let sx1_eff = if sx1 > 0 { sx1.min(w) } else { w.saturating_sub(tw) };
+    let sy1_eff = if sy1 > 0 { sy1.min(h) } else { h.saturating_sub(th) };
+    let (template, tw, th) = extract_template(&work, w, h, tx, ty, tw, th);
+    if template.is_empty() {
+        return inspect_error(req, msg, "invalid template roi");
+    }
+
+    let (match_x, match_y, score) = if req.task_type == "vision.inspect.presence" {
+        let s = ncc_score_at(&work, w, h, &template, tw, th, tx, ty);
+        (tx, ty, s)
+    } else {
+        let m = ncc_match(&work, w, h, &template, tw, th, sx0, sy0, sx1_eff, sy1_eff)
+            .unwrap_or((0, 0, -1.0));
+        (m.0, m.1, m.2)
+    };
+
+    if score < -0.5 {
+        return inspect_error(req, msg, "ncc match failed");
+    }
+
+    let status = if score >= min_score { "ok" } else { "error" };
+    let mut metrics = vec![
+        Metric {
+            name: "ncc_score".into(),
+            value: score,
+            unit: "ratio".into(),
+        },
+        Metric {
+            name: "template_offset_x_px".into(),
+            value: match_x as f64,
+            unit: "px".into(),
+        },
+        Metric {
+            name: "template_offset_y_px".into(),
+            value: match_y as f64,
+            unit: "px".into(),
+        },
+    ];
+    if expected_x > 0.0 || expected_y > 0.0 {
+        metrics.push(Metric {
+            name: "position_deviation_x_px".into(),
+            value: match_x as f64 - expected_x,
+            unit: "px".into(),
+        });
+        metrics.push(Metric {
+            name: "position_deviation_y_px".into(),
+            value: match_y as f64 - expected_y,
+            unit: "px".into(),
+        });
+    }
+
+    let message = if status == "ok" {
+        msg.to_string()
+    } else {
+        format!("{}: ncc below min_score ({} < {})", msg, score, min_score)
+    };
+
+    TaskResponse {
+        task_id: req.task_id,
+        status: status.into(),
+        message,
+        detections: vec![Detection {
+            class_id: 12,
+            label: "template".into(),
+            score: (score.min(0.99) as f32).max(0.0),
+            bbox: BBox {
+                x: match_x as f32,
+                y: match_y as f32,
+                width: tw as f32,
+                height: th as f32,
+            },
+        }],
+        metrics,
+    }
+}
+
+fn inspect_error(req: &TaskRequest, msg: &str, err: &str) -> TaskResponse {
+    TaskResponse {
+        task_id: req.task_id,
+        status: "error".into(),
+        message: format!("{}: {}", msg, err),
+        detections: vec![],
+        metrics: vec![],
+    }
 }
 
 fn measure_error(req: &TaskRequest, msg: &str, err: &str) -> TaskResponse {

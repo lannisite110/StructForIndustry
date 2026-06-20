@@ -33,6 +33,10 @@ pub struct LineProfile {
     pub compliance: ComplianceSection,
     #[serde(default)]
     pub measure: MeasureSection,
+    #[serde(default)]
+    pub calibration: CalibrationSection,
+    #[serde(default)]
+    pub inspect: InspectSection,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
@@ -165,6 +169,54 @@ pub struct MeasureDimensionSection {
 
 fn default_dim_kind() -> String {
     "edge_position".into()
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CalibrationSection {
+    #[serde(default)]
+    pub mm_per_pixel: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct InspectSection {
+    #[serde(default = "default_min_score")]
+    pub min_score: f64,
+    #[serde(default)]
+    pub expected_x: f64,
+    #[serde(default)]
+    pub expected_y: f64,
+    #[serde(default)]
+    pub position_tolerance: f64,
+    #[serde(default)]
+    pub search: InspectRoiSection,
+    #[serde(default)]
+    pub template: InspectRoiSection,
+}
+
+fn default_min_score() -> f64 {
+    0.8
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+pub struct InspectRoiSection {
+    #[serde(default)]
+    pub x: u32,
+    #[serde(default)]
+    pub y: u32,
+    #[serde(default)]
+    pub width: u32,
+    #[serde(default)]
+    pub height: u32,
+    #[serde(default)]
+    pub x0: u32,
+    #[serde(default)]
+    pub y0: u32,
+    #[serde(default)]
+    pub x1: u32,
+    #[serde(default)]
+    pub y1: u32,
 }
 
 fn default_plugin() -> String {
@@ -443,6 +495,33 @@ pub fn measure_params_json(measure: &MeasureSection) -> serde_json::Value {
     })
 }
 
+pub fn calibration_params_json(cal: &CalibrationSection) -> serde_json::Value {
+    serde_json::json!({
+        "mmPerPixel": cal.mm_per_pixel,
+    })
+}
+
+pub fn inspect_params_json(inspect: &InspectSection) -> serde_json::Value {
+    serde_json::json!({
+        "minScore": inspect.min_score,
+        "expectedX": inspect.expected_x,
+        "expectedY": inspect.expected_y,
+        "positionTolerance": inspect.position_tolerance,
+        "search": {
+            "x0": inspect.search.x0,
+            "y0": inspect.search.y0,
+            "x1": inspect.search.x1,
+            "y1": inspect.search.y1,
+        },
+        "template": {
+            "x": inspect.template.x,
+            "y": inspect.template.y,
+            "width": inspect.template.width,
+            "height": inspect.template.height,
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -478,6 +557,18 @@ mod tests {
         assert_eq!(store.snapshot().measure.edge.polarity, "rising");
         let json = measure_params_json(&store.snapshot().measure);
         assert_eq!(json["mmPerPixel"], 0.1);
+    }
+
+    #[test]
+    fn loads_line_inspect_profile() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = root.join("domains/industrial-inspection/profiles/line-inspect-e2e.yaml");
+        let store = ProfileStore::load(path).expect("load");
+        assert_eq!(store.snapshot().name, "line-inspect-e2e");
+        assert_eq!(store.params().task_type, "vision.inspect.template");
+        assert!(store.snapshot().inspect.min_score > 0.0);
+        let cal = calibration_params_json(&store.snapshot().calibration);
+        assert_eq!(cal["mmPerPixel"], 0.05);
     }
 
     #[test]

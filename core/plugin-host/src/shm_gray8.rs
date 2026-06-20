@@ -339,7 +339,171 @@ pub fn measure_circle_diameter_horizontal(
     Some((w.0, w.0 / 2.0, w.1, w.2))
 }
 
-/// Gray8 frame with a vertical rising edge at `edge_x` on scan row `scan_y`.
+fn template_stats(template: &[u8]) -> (f64, f64) {
+    let n = template.len();
+    if n == 0 {
+        return (0.0, 0.0);
+    }
+    let sum = template.iter().map(|&p| p as f64).sum::<f64>();
+    let mean = sum / n as f64;
+    let var = template
+        .iter()
+        .map(|&p| {
+            let d = p as f64 - mean;
+            d * d
+        })
+        .sum::<f64>()
+        / n as f64;
+    (mean, var.max(0.0).sqrt())
+}
+
+/// Zero-mean NCC between `template` (tw×th) and image patch at `(x, y)`.
+pub fn ncc_score_at(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    template: &[u8],
+    tw: u32,
+    th: u32,
+    x: u32,
+    y: u32,
+) -> f64 {
+    if tw == 0 || th == 0 || x + tw > width || y + th > height {
+        return -1.0;
+    }
+    let (μ_t, σ_t) = template_stats(template);
+    if σ_t < 1e-6 {
+        return -1.0;
+    }
+    let n = (tw * th) as usize;
+    let mut sum_cross = 0.0;
+    let mut sum_i = 0.0;
+    let mut sum_i2 = 0.0;
+    let width = width as usize;
+    let tw = tw as usize;
+    let th = th as usize;
+    let x = x as usize;
+    let y = y as usize;
+    for row in 0..th {
+        let img_row = (y + row) * width + x;
+        let tpl_row = row * tw;
+        for col in 0..tw {
+            let iv = pixels[img_row + col] as f64;
+            let tv = template[tpl_row + col] as f64;
+            sum_cross += (tv - μ_t) * iv;
+            sum_i += iv;
+            sum_i2 += iv * iv;
+        }
+    }
+    let μ_i = sum_i / n as f64;
+    let var_i = sum_i2 / n as f64 - μ_i * μ_i;
+    let σ_i = var_i.max(0.0).sqrt();
+    if σ_i < 1e-6 {
+        return -1.0;
+    }
+    sum_cross / (n as f64 * σ_t * σ_i)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn ncc_match(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    template: &[u8],
+    tw: u32,
+    th: u32,
+    x0: u32,
+    y0: u32,
+    x1: u32,
+    y1: u32,
+) -> Option<(u32, u32, f64)> {
+    if tw == 0 || th == 0 || width < tw || height < th {
+        return None;
+    }
+    let max_x = width - tw;
+    let max_y = height - th;
+    let x0 = x0.min(max_x);
+    let y0 = y0.min(max_y);
+    let x1 = x1.min(max_x);
+    let y1 = y1.min(max_y);
+    let (x0, x1) = if x0 > x1 { (x1, x0) } else { (x0, x1) };
+    let (y0, y1) = if y0 > y1 { (y1, y0) } else { (y0, y1) };
+    let mut best_x = x0;
+    let mut best_y = y0;
+    let mut best_score = -1.0;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let score = ncc_score_at(pixels, width, height, template, tw, th, x, y);
+            if score > best_score {
+                best_score = score;
+                best_x = x;
+                best_y = y;
+            }
+        }
+    }
+    if best_score < -0.5 {
+        return None;
+    }
+    Some((best_x, best_y, best_score))
+}
+
+pub fn extract_template(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    tx: u32,
+    ty: u32,
+    tw: u32,
+    th: u32,
+) -> (Vec<u8>, u32, u32) {
+    let tx = tx.min(width.saturating_sub(1));
+    let ty = ty.min(height.saturating_sub(1));
+    let tw = tw.min(width.saturating_sub(tx)).max(1);
+    let th = th.min(height.saturating_sub(ty)).max(1);
+    let mut out = Vec::with_capacity((tw * th) as usize);
+    let width = width as usize;
+    let tw = tw as usize;
+    let th = th as usize;
+    let tx = tx as usize;
+    let ty = ty as usize;
+    for row in 0..th {
+        let start = (ty + row) * width + tx;
+        out.extend_from_slice(&pixels[start..start + tw]);
+    }
+    (out, tw as u32, th as u32)
+}
+
+/// Gray8 frame with a bright template patch for NCC E2E.
+pub fn write_template_pattern(
+    path: &Path,
+    width: u32,
+    height: u32,
+    tx: u32,
+    ty: u32,
+    tw: u32,
+    th: u32,
+    background: u8,
+    bright: u8,
+) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let stride = width;
+    let mut buf = vec![background; (stride * height) as usize];
+    let tw = tw.min(width.saturating_sub(tx));
+    let th = th.min(height.saturating_sub(ty));
+    for row in 0..th {
+        for col in 0..tw {
+            let x = tx + col;
+            let y = ty + row;
+            buf[y as usize * stride as usize + x as usize] = bright;
+        }
+    }
+    std::fs::write(path, buf)
+}
+
 pub fn write_measure_edge_pattern(
     path: &Path,
     width: u32,
@@ -434,7 +598,6 @@ mod tests {
     fn line_width_from_edges() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("bar.raw");
-        // bright bar 40..80 on dark background
         let w = 200u32;
         let h = 40u32;
         let mut buf = vec![20u8; (w * h) as usize];
@@ -447,5 +610,19 @@ mod tests {
         let pixels = read_gray8(path.to_str().unwrap(), (w * h) as u64, 0).unwrap();
         let m = measure_line_width_horizontal(&pixels, w, h, 20, 0, 199).unwrap();
         assert!(m.0 > 35.0 && m.0 < 45.0);
+    }
+
+    #[test]
+    fn ncc_finds_template_patch() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tpl.raw");
+        write_template_pattern(&path, 64, 48, 20, 12, 16, 16, 40, 200).unwrap();
+        let mut pixels = read_gray8(path.to_str().unwrap(), 64 * 48, 0).unwrap();
+        pixels[12 * 64 + 20] = 180;
+        let (tpl, tw, th) = extract_template(&pixels, 64, 48, 20, 12, 16, 16);
+        let m = ncc_match(&pixels, 64, 48, &tpl, tw, th, 0, 0, 63, 47).unwrap();
+        assert_eq!(m.0, 20);
+        assert_eq!(m.1, 12);
+        assert!(m.2 > 0.99);
     }
 }

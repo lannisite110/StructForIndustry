@@ -8,8 +8,13 @@ function parse_measure_params(params::AbstractDict)
     measure = get(params, "measure", Dict())
     edge = get(measure, "edge", Dict())
     dim = get(measure, "dimension", Dict())
+    cal = get(params, "calibration", Dict())
+    mm = Float64(get(measure, "mmPerPixel", get(measure, "mm_per_pixel", 0.0)))
+    if mm <= 0.0
+        mm = Float64(get(cal, "mmPerPixel", get(cal, "mm_per_pixel", 0.0)))
+    end
     return (
-        mm_per_pixel=Float64(get(measure, "mmPerPixel", get(measure, "mm_per_pixel", 0.0))),
+        mm_per_pixel=mm,
         x0=Int(get(edge, "x0", 0)),
         y0=Int(get(edge, "y0", 0)),
         x1=Int(get(edge, "x1", 0)),

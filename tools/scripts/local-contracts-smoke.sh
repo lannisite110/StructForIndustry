@@ -43,6 +43,7 @@ chmod +x tools/scripts/*-e2e.sh tools/scripts/bench-1080p-report.sh 2>/dev/null 
 ./tools/scripts/onnx-infer-e2e.sh
 ./tools/scripts/anomaly-infer-e2e.sh
 ./tools/scripts/measure-e2e.sh
+./tools/scripts/inspect-e2e.sh
 ./tools/scripts/gige-capture-e2e.sh
 ./tools/scripts/mindvision-capture-e2e.sh
 ./tools/scripts/modbus-plc-e2e.sh

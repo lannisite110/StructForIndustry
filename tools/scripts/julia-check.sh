@@ -63,6 +63,35 @@ resp = process_measure_task(
 println("SFIVisionMeasure OK")
 '
 
+echo "== SFIVisionInspect =="
+julia --project=domains/industrial-inspection/plugins/defect-detect -e '
+using Pkg
+Pkg.instantiate()
+include("domains/industrial-inspection/plugins/defect-detect/src/SFIVisionInspect.jl")
+using .SFIVisionInspect
+w, h = 64, 48
+buf = fill(UInt8(40), w * h)
+        for y in 12:27, x in 20:35
+            buf[y * w + x + 1] = 200
+        end
+        buf[12 * w + 21] = 180
+resp = process_inspect_task(
+    buf, w, h,
+    Dict(
+        "inspect" => Dict(
+            "minScore" => 0.85,
+            "search" => Dict("x0" => 0, "y0" => 0, "x1" => 63, "y1" => 47),
+            "template" => Dict("x" => 20, "y" => 12, "width" => 16, "height" => 16),
+        ),
+        "calibration" => Dict("mmPerPixel" => 0.05),
+    );
+    task_id=1,
+)
+@assert resp["status"] == "ok"
+@assert any(m -> m["name"] == "ncc_score", resp["metrics"])
+println("SFIVisionInspect OK")
+'
+
 echo "== spc-metrics =="
 julia --project=domains/industrial-inspection/plugins/spc-metrics -e '
 using Pkg

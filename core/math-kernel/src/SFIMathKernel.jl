@@ -8,6 +8,7 @@ include("threshold.jl")
 include("morphology.jl")
 include("components.jl")
 include("measure.jl")
+include("template.jl")
 
 export gray_threshold,
     bright_pixel_count,
@@ -37,7 +38,10 @@ export gray_threshold,
     fit_circle,
     distance_point_to_line,
     measure_line_width_horizontal,
-    measure_circle_diameter_horizontal
+    measure_circle_diameter_horizontal,
+    ncc_score_at,
+    ncc_match,
+    extract_template
 
 """
     gray_threshold(data, threshold) -> BitVector

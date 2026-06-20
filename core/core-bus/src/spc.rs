@@ -20,6 +20,11 @@ const MEASURE_METRIC_UNITS: &[(&str, &str)] = &[
     ("circle_radius_px", "px"),
     ("dimension_deviation_px", "px"),
     ("dimension_deviation_mm", "mm"),
+    ("ncc_score", "ratio"),
+    ("template_offset_x_px", "px"),
+    ("template_offset_y_px", "px"),
+    ("position_deviation_x_px", "px"),
+    ("position_deviation_y_px", "px"),
 ];
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
@@ -65,7 +70,7 @@ impl SpcEngine {
             .unwrap_or_else(|| metric_value(resp, "bright_pixels").unwrap_or(0.0));
         let is_ng = resp.status == "error"
             || resp.detections.iter().any(|d| {
-                if d.class_id == 10 || d.class_id == 11 {
+                if d.class_id == 10 || d.class_id == 11 || d.class_id == 12 {
                     return false;
                 }
                 d.class_id == 1

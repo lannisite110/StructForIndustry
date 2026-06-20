@@ -3,6 +3,8 @@ using Mmap
 using SFIDefectDetect
 include("../../domains/industrial-inspection/plugins/defect-detect/src/SFIVisionMeasure.jl")
 using .SFIVisionMeasure
+include("../../domains/industrial-inspection/plugins/defect-detect/src/SFIVisionInspect.jl")
+using .SFIVisionInspect
 using Sockets
 
 const WIRE_API_VERSION = 1
@@ -71,6 +73,17 @@ function process_task(req)
         pixels, width, height = crop_roi_pixels(pixels, width, height, roi)
     end
     task_type = string(get(req, :task_type, "vision.detect.defect"))
+    if startswith(task_type, "vision.inspect.")
+        return process_inspect_task(
+            pixels,
+            width,
+            height,
+            params;
+            task_id=req.task_id,
+            task_type=task_type,
+            message="vision-2d inspect",
+        )
+    end
     if startswith(task_type, "vision.measure.")
         return process_measure_task(
             pixels,

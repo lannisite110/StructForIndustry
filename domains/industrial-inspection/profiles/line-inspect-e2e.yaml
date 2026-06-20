@@ -1,0 +1,50 @@
+# E2E profile for template inspect (64×48)
+name: line-inspect-e2e
+domain: industrial-inspection
+version: 0.0.1
+
+scheduler:
+  mode: realtime
+  dropStaleFrames: true
+  maxQueueDepth: 2
+  defaultDeadlineMs: 50
+  autoVision: true
+  taskType: vision.inspect.template
+
+vision:
+  plugin: defect-detect
+  threshold: 128
+  roi:
+    x: 0
+    y: 0
+    width: 64
+    height: 48
+
+calibration:
+  mmPerPixel: 0.05
+
+inspect:
+  minScore: 0.85
+  expectedX: 20.0
+  expectedY: 12.0
+  positionTolerance: 4.0
+  search:
+    x0: 0
+    y0: 0
+    x1: 63
+    y1: 47
+  template:
+    x: 20
+    y: 12
+    width: 16
+    height: 16
+
+spc:
+  windowSize: 8
+  persist: false
+  metrics:
+    - ncc_score
+    - template_offset_x_px
+
+compliance:
+  auditConfigChanges: false

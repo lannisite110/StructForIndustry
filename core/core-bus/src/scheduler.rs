@@ -12,7 +12,10 @@ use tracing::{info, warn};
 use crate::bus::CoreBus;
 use crate::hal_ipc::HalFrameNotify;
 use crate::mes::{post_mes_report, InspectionReport};
-use crate::profile::{algorithm_params_json, measure_params_json, DispatchParams, ProfileStore, VisionSection};
+use crate::profile::{
+    algorithm_params_json, calibration_params_json, inspect_params_json, measure_params_json,
+    CalibrationSection, DispatchParams, InspectSection, ProfileStore, VisionSection,
+};
 use crate::spc::metrics_payload_bytes;
 
 #[derive(Clone, Debug)]
@@ -190,6 +193,14 @@ async fn dispatch_one(
         .profile()
         .map(|p| measure_params_json(&p.snapshot().measure))
         .unwrap_or_else(|| measure_params_json(&crate::profile::MeasureSection::default()));
+    let calibration = bus
+        .profile()
+        .map(|p| calibration_params_json(&p.snapshot().calibration))
+        .unwrap_or_else(|| calibration_params_json(&CalibrationSection::default()));
+    let inspect = bus
+        .profile()
+        .map(|p| inspect_params_json(&p.snapshot().inspect))
+        .unwrap_or_else(|| inspect_params_json(&InspectSection::default()));
 
     let req = task_request_from_hal(
         task_id,
@@ -210,6 +221,8 @@ async fn dispatch_one(
             },
             "algorithm": algorithm,
             "measure": measure,
+            "calibration": calibration,
+            "inspect": inspect,
         }),
     );
 

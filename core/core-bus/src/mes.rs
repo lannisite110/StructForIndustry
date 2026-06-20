@@ -36,6 +36,8 @@ impl InspectionReport {
             "NG"
         } else if params.task_type.starts_with("vision.measure.") {
             if resp.status == "error" { "NG" } else { "OK" }
+        } else if params.task_type.starts_with("vision.inspect.") {
+            if resp.status == "error" { "NG" } else { "OK" }
         } else {
             "OK"
         };
@@ -54,7 +56,7 @@ impl InspectionReport {
 
 fn is_surface_defect(d: &sfi_plugin_host::Detection) -> bool {
     // Measure overlays (edge / dimension) are not inspection defects.
-    if d.class_id == 10 || d.class_id == 11 {
+    if d.class_id == 10 || d.class_id == 11 || d.class_id == 12 {
         return false;
     }
     d.class_id == 1

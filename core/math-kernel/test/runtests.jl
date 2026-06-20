@@ -70,6 +70,24 @@ using SFIMathKernel
         @test right_x > left_x
     end
 
+    @testset "ncc template match" begin
+        w, h = 64, 48
+        buf = fill(UInt8(40), w * h)
+        tx, ty, tw, th = 20, 12, 16, 16
+        for y in ty:(ty + th - 1)
+            for x in tx:(tx + tw - 1)
+                buf[y * w + x + 1] = 200
+            end
+        end
+        buf[ty * w + tx + 1] = 180
+        template, tw, th = extract_template(buf, w, h, tx, ty, tw, th)
+        result = ncc_match(buf, w, h, template, tw, th, 0, 0, w - 1, h - 1)
+        @test result !== nothing
+        mx, my, score = result
+        @test mx == tx && my == ty
+        @test score > 0.99
+    end
+
     @testset "parabolic subpixel peak center" begin
         @test parabolic_subpixel(1.0, 3.0, 1.0) ≈ 0.0
     end
