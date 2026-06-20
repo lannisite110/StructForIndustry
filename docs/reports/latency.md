@@ -8,9 +8,9 @@ Per-frame anomaly scoring latency (single thread). Feature extractor: **onnx-ref
 
 | resolution | iters | p50 | p95 | p99 | mean |
 |-----------|------:|----:|----:|----:|-----:|
-| 64x48 | 2000 | 0.069ms | 0.085ms | 0.105ms | 0.066ms |
-| 640x480 | 500 | 2.642ms | 3.503ms | 3.690ms | 2.772ms |
-| 1920x1080 | 200 | 17.847ms | 23.814ms | 29.841ms | 18.827ms |
+| 64x48 | 2000 | 0.070ms | 0.097ms | 0.135ms | 0.074ms |
+| 640x480 | 500 | 3.130ms | 4.472ms | 5.786ms | 3.229ms |
+| 1920x1080 | 200 | 20.352ms | 27.270ms | 34.580ms | 20.931ms |
 
 > Budget: <20ms/frame at 1080p. Small/VGA frames clear it with margin on a single CPU thread; richer (onnx-ref) features at full HD sit near the budget — for HD real-time use the ONNX GPU execution provider, per-cell parallelism, or ROI tiling.
 

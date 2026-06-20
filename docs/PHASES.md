@@ -6,10 +6,11 @@
 > **收敛声明 (2026-06)**: 平台已从「六领域通用框架」**钉死**为单一工业 AOI 平台。
 > 其余五领域 scaffold（robotics / quant / aerospace / biomed / cloud-edge）**已删除**，
 > 不再保留 README / manifest。core/* 仍是可复用地基，但短期内不再开第二领域。
-> 主线只做一件事：**让平台产出三张表** ——
+> 主线只做一件事：**让平台产出量化报告** ——
 > 1. 换型曲线（5/10/20 OK 样本）
 > 2. 推理延迟表（CPU vs GPU，目标 <20ms）
 > 3. 光照 ablation（实验台数据）
+> 4. 误报率 / 漏检率（混淆矩阵 + 阈值扫描，FPR↔漏检权衡）
 
 ## 总览
 
@@ -147,9 +148,9 @@
 | 边缘 runtime | `domains/industrial-inspection` | Rust + Zig | 轻量部署、远程配置、健康上报 |
 | 部署 | `examples/deploy` | Docker | 单机 compose（已有 docker-demo-smoke） |
 | 可观测 | — | metrics/logs | Prometheus：fps、延迟、队列深度、插件重启次数（已有 metrics 雏形） |
-| **三张表** ✅ | `docs/reports/` | 报告 | 换型曲线 / 推理延迟表 / 光照 ablation（`tools/scripts/anomaly-reports.sh` 生成，合成帧；待替换为实验台数据） |
+| **量化报告** ✅ | `docs/reports/` | 报告 | 换型曲线 / 推理延迟表 / 光照 ablation / 误报率·漏检率（`tools/scripts/anomaly-reports.sh` 生成，合成帧；待替换为实验台数据） |
 
-**里程碑**: 工业边缘节点可独立部署；产出换型、延迟、光照三张表（首版已落地于 `docs/reports/`，数据源为合成帧，接实验台后即为真实结果）。
+**里程碑**: 工业边缘节点可独立部署；产出换型、延迟、光照、误报/漏检四张表（首版已落地于 `docs/reports/`，数据源为合成帧，接实验台后即为真实结果）。
 
 **人力（估）**: 1–2 平台，约 4–8 周。
 

@@ -19,9 +19,9 @@ Per-frame anomaly scoring latency (single thread). Feature extractor: **onnx-ref
 
 | resolution | iters | p50 | p95 | p99 | mean |
 |-----------|------:|----:|----:|----:|-----:|
-| 64x48 | 2000 | 0.069ms | 0.085ms | 0.110ms | 0.068ms |
-| 640x480 | 500 | 2.884ms | 3.616ms | 4.563ms | 2.899ms |
-| 1920x1080 | 200 | 17.229ms | 21.667ms | 24.945ms | 18.227ms |
+| 64x48 | 2000 | 0.065ms | 0.107ms | 0.164ms | 0.072ms |
+| 640x480 | 500 | 3.050ms | 5.226ms | 6.667ms | 3.295ms |
+| 1920x1080 | 200 | 21.777ms | 31.897ms | 33.806ms | 22.798ms |
 
 > Budget: <20ms/frame at 1080p. Small/VGA frames clear it with margin on a single CPU thread; richer (onnx-ref) features at full HD sit near the budget — for HD real-time use the ONNX GPU execution provider, per-cell parallelism, or ROI tiling.
 
@@ -39,4 +39,27 @@ Apply gain/offset to OK and defect frames after calibrating on nominal OK light.
 | 1.2 | +20 | 0.69516 | OK ✓ | 6.67057 | NG ✓ |
 
 > illumination normalization: **on**
+
+## False-positive / miss rate
+
+Feature extractor: **onnx-ref (filter-bank)**. Test set: 60 OK (40 nominal + 20 noisier than calibration) + 100 defect frames (contrast 130–235 DN, size 2–8 px, varied position). Calibrated on 20 nominal OK frames only.
+
+**Operating point (calibrated threshold)**
+
+| threshold | TP | FP | TN | FN | FPR (误报率) | miss rate (漏检率) | precision | recall |
+|----------:|---:|---:|---:|---:|-----------:|-------------------:|----------:|-------:|
+| 1.5237 | 99 | 18 | 42 | 1 | 30.0% | 1.0% | 84.6% | 99.0% |
+
+**Threshold sweep (FPR vs miss-rate trade-off)**
+
+| threshold scale | threshold | FPR (误报率) | miss rate (漏检率) |
+|----------------:|----------:|-----------:|-------------------:|
+| 0.70x | 1.0666 | 33.3% | 0.0% |
+| 0.85x | 1.2951 | 33.3% | 0.0% |
+| 1.00x | 1.5237 | 30.0% | 1.0% |
+| 1.20x | 1.8284 | 25.0% | 2.0% |
+| 1.50x | 2.2855 | 23.3% | 8.0% |
+| 2.00x | 3.0473 | 5.0% | 17.0% |
+
+> Lower threshold → fewer escapes (miss), more false alarms; higher → the reverse. The noisier-than-calibration OK frames drive most false positives, so the real lever is recalibrating on representative OK frames (and tuning the margin) to the line's target miss-rate.
 

@@ -1,15 +1,19 @@
-//! sfi-anomaly — OK-only model calibration + the three reports.
+//! sfi-anomaly — OK-only model calibration + reports (changeover / latency /
+//! illumination / error-rates).
 //!
 //! Subcommands:
 //!   calibrate --ok N --out model.json      Calibrate from N synthetic OK frames
 //!   score --model model.json [--defect]    Score one OK/defect frame
-//!   report changeover|latency|illum|all    Emit a markdown report to stdout
+//!   dump --kind ok|ng --out frame.gray8    Write a raw Gray8 frame for replay
+//!   report changeover|latency|illum|errors|all   Emit a markdown report
 
 use std::path::PathBuf;
 use std::time::Instant;
 
 use sfi_ai_infer::anomaly::{calibrate, AnomalyModel, CalibrateConfig, Extractor};
-use sfi_ai_infer::synthetic::{apply_illumination, defect_surface, ok_surface, HEIGHT, WIDTH};
+use sfi_ai_infer::synthetic::{
+    apply_illumination, defect_at, defect_surface, ok_surface, ok_surface_amp, HEIGHT, WIDTH,
+};
 
 fn ok_frames(n: u32) -> Vec<(Vec<u8>, u32, u32)> {
     (0..n)
@@ -274,6 +278,155 @@ Feature extractor: **{}**.\n\n",
     out
 }
 
+/// Labeled synthetic test set: `(frame, is_defect)`.
+///
+/// Deliberately includes hard cases on both sides so the trade-off is real:
+/// OK frames range from nominal (±3 DN, as calibrated) to noisier than the
+/// calibration set saw (up to ±10 DN), and defects span from near the noise
+/// floor (tiny, ~10 DN contrast) to strong, across positions.
+fn labeled_test_set() -> Vec<(Vec<u8>, bool)> {
+    let mut set = Vec::new();
+    // 40 nominal OK + 20 noisier-than-calibration OK.
+    for seed in 2000..2040u64 {
+        set.push((ok_surface(seed), false));
+    }
+    for (i, seed) in (2040..2060u64).enumerate() {
+        let amp = 5 + (i as i32 % 6); // 5..10 DN
+        set.push((ok_surface_amp(seed, amp), false));
+    }
+    // Defects: contrast over a ~108..128 background; 130/140 are near noise.
+    let values = [130u8, 140, 160, 190, 235];
+    let sizes = [2usize, 3, 5, 8];
+    let positions = [(12usize, 8usize), (28, 16), (44, 28), (20, 32), (50, 10)];
+    let mut seed = 3000u64;
+    for &value in &values {
+        for &size in &sizes {
+            for &(cx, cy) in &positions {
+                set.push((defect_at(seed, cx, cy, size, value), true));
+                seed += 1;
+            }
+        }
+    }
+    set
+}
+
+struct Confusion {
+    tp: u32,
+    fp: u32,
+    tn: u32,
+    fn_: u32,
+}
+
+impl Confusion {
+    fn tally(scored: &[(f32, bool)], threshold: f32) -> Self {
+        let mut c = Confusion {
+            tp: 0,
+            fp: 0,
+            tn: 0,
+            fn_: 0,
+        };
+        for &(score, is_defect) in scored {
+            let flagged = score > threshold;
+            match (is_defect, flagged) {
+                (true, true) => c.tp += 1,
+                (true, false) => c.fn_ += 1,
+                (false, true) => c.fp += 1,
+                (false, false) => c.tn += 1,
+            }
+        }
+        c
+    }
+    fn fpr(&self) -> f32 {
+        let d = self.fp + self.tn;
+        if d == 0 {
+            0.0
+        } else {
+            self.fp as f32 / d as f32
+        }
+    }
+    fn miss_rate(&self) -> f32 {
+        let d = self.tp + self.fn_;
+        if d == 0 {
+            0.0
+        } else {
+            self.fn_ as f32 / d as f32
+        }
+    }
+    fn precision(&self) -> f32 {
+        let d = self.tp + self.fp;
+        if d == 0 {
+            0.0
+        } else {
+            self.tp as f32 / d as f32
+        }
+    }
+    fn recall(&self) -> f32 {
+        1.0 - self.miss_rate()
+    }
+}
+
+fn report_errors(cfg: &CalibrateConfig) -> String {
+    let model = calibrate(&ok_frames(20), cfg).unwrap();
+    let test = labeled_test_set();
+    let n_ok = test.iter().filter(|(_, d)| !*d).count();
+    let n_ng = test.len() - n_ok;
+    let scored: Vec<(f32, bool)> = test
+        .iter()
+        .map(|(f, d)| (model.score(f, WIDTH, HEIGHT).unwrap().score, *d))
+        .collect();
+
+    let mut out = String::from("## False-positive / miss rate\n\n");
+    out.push_str(&format!(
+        "Feature extractor: **{}**. Test set: {n_ok} OK ({} nominal + {} noisier than \
+calibration) + {n_ng} defect frames (contrast 130–235 DN, size 2–8 px, varied position). \
+Calibrated on 20 nominal OK frames only.\n\n",
+        extractor_label(&cfg.extractor),
+        n_ok - 20,
+        20
+    ));
+
+    // Operating point at the calibrated threshold.
+    let c = Confusion::tally(&scored, model.threshold);
+    out.push_str("**Operating point (calibrated threshold)**\n\n");
+    out.push_str("| threshold | TP | FP | TN | FN | FPR (误报率) | miss rate (漏检率) | precision | recall |\n");
+    out.push_str("|----------:|---:|---:|---:|---:|-----------:|-------------------:|----------:|-------:|\n");
+    out.push_str(&format!(
+        "| {:.4} | {} | {} | {} | {} | {:.1}% | {:.1}% | {:.1}% | {:.1}% |\n\n",
+        model.threshold,
+        c.tp,
+        c.fp,
+        c.tn,
+        c.fn_,
+        c.fpr() * 100.0,
+        c.miss_rate() * 100.0,
+        c.precision() * 100.0,
+        c.recall() * 100.0
+    ));
+
+    // Threshold sweep — FPR vs miss-rate trade-off.
+    out.push_str("**Threshold sweep (FPR vs miss-rate trade-off)**\n\n");
+    out.push_str("| threshold scale | threshold | FPR (误报率) | miss rate (漏检率) |\n");
+    out.push_str("|----------------:|----------:|-----------:|-------------------:|\n");
+    for &scale in &[0.7f32, 0.85, 1.0, 1.2, 1.5, 2.0] {
+        let thr = model.threshold * scale;
+        let c = Confusion::tally(&scored, thr);
+        out.push_str(&format!(
+            "| {:.2}x | {:.4} | {:.1}% | {:.1}% |\n",
+            scale,
+            thr,
+            c.fpr() * 100.0,
+            c.miss_rate() * 100.0
+        ));
+    }
+    out.push_str(
+        "\n> Lower threshold → fewer escapes (miss), more false alarms; higher → the \
+reverse. The noisier-than-calibration OK frames drive most false positives, so the \
+real lever is recalibrating on representative OK frames (and tuning the margin) to the \
+line's target miss-rate.\n\n",
+    );
+    out
+}
+
 fn cmd_report(args: &[String]) -> Result<(), String> {
     let kind = args.first().map(String::as_str).unwrap_or("all");
     let cfg = config_from_args(args);
@@ -285,10 +438,12 @@ fn cmd_report(args: &[String]) -> Result<(), String> {
         "changeover" => out.push_str(&report_changeover(&cfg)),
         "latency" => out.push_str(&report_latency(&cfg)),
         "illum" => out.push_str(&report_illum(&cfg)),
+        "errors" => out.push_str(&report_errors(&cfg)),
         "all" => {
             out.push_str(&report_changeover(&cfg));
             out.push_str(&report_latency(&cfg));
             out.push_str(&report_illum(&cfg));
+            out.push_str(&report_errors(&cfg));
         }
         other => return Err(format!("unknown report: {other}")),
     }
@@ -311,7 +466,7 @@ fn main() {
                  calibrate --ok N --out model.json [--extractor handcrafted|onnx[:model.onnx]]\n\
                  score --model model.json [--defect]\n\
                  dump --kind ok|ng --out frame.gray8\n\
-                 report changeover|latency|illum|all [--extractor handcrafted|onnx[:model.onnx]]"
+                 report changeover|latency|illum|errors|all [--extractor handcrafted|onnx[:model.onnx]]"
             );
             return;
         }
@@ -320,5 +475,41 @@ fn main() {
     if let Err(e) = result {
         eprintln!("error: {e}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn confusion_rates() {
+        // 2 defects (scores 0.9, 0.3), 2 OK (0.4, 0.1); threshold 0.5.
+        let scored = [(0.9, true), (0.3, true), (0.4, false), (0.1, false)];
+        let c = Confusion::tally(&scored, 0.5);
+        assert_eq!((c.tp, c.fp, c.tn, c.fn_), (1, 0, 2, 1));
+        assert_eq!(c.miss_rate(), 0.5); // one defect (0.3) missed
+        assert_eq!(c.fpr(), 0.0);
+        assert_eq!(c.recall(), 0.5);
+    }
+
+    #[test]
+    fn test_set_is_balanced_and_labeled() {
+        let set = labeled_test_set();
+        let ok = set.iter().filter(|(_, d)| !*d).count();
+        let ng = set.len() - ok;
+        assert_eq!(ok, 60);
+        assert_eq!(ng, 100);
+    }
+
+    #[test]
+    fn calibrated_threshold_catches_most_defects() {
+        let model = calibrate(&ok_frames(20), &config_from_args(&[])).unwrap();
+        let scored: Vec<(f32, bool)> = labeled_test_set()
+            .iter()
+            .map(|(f, d)| (model.score(f, WIDTH, HEIGHT).unwrap().score, *d))
+            .collect();
+        let c = Confusion::tally(&scored, model.threshold);
+        assert!(c.recall() > 0.9, "recall too low: {}", c.recall());
     }
 }

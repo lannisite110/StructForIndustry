@@ -14,6 +14,7 @@ echo "generating reports into $OUT_DIR ..."
 run report changeover > "$OUT_DIR/changeover.md"
 run report latency    > "$OUT_DIR/latency.md"
 run report illum      > "$OUT_DIR/illumination.md"
+run report errors     > "$OUT_DIR/error-rates.md"
 run report all        > "$OUT_DIR/anomaly-reports.md"
 
 echo "wrote:"

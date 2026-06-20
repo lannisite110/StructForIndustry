@@ -26,6 +26,12 @@ pub mod synthetic {
 
     /// Smooth mid-gray surface (~108..128 DN) + deterministic dither.
     pub fn ok_surface(seed: u64) -> Vec<u8> {
+        ok_surface_amp(seed, DITHER_AMP)
+    }
+
+    /// `ok_surface` with an explicit dither amplitude — model noisier OK frames
+    /// (e.g. higher gain/temperature) than the calibration set saw.
+    pub fn ok_surface_amp(seed: u64, amp: i32) -> Vec<u8> {
         let mut buf = vec![0u8; (STRIDE * HEIGHT) as usize];
         let mut state = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1);
         for (i, px) in buf.iter_mut().enumerate() {
@@ -33,8 +39,9 @@ pub mod synthetic {
             let y = (i as u32) / STRIDE;
             // Low-frequency gradient field, no wrap, no saturation.
             let base = 108.0 + 10.0 * (x as f32 / WIDTH as f32) + 8.0 * (y as f32 / HEIGHT as f32);
-            let r = (lcg(&mut state) >> 40) as i64 % (2 * DITHER_AMP as i64 + 1);
-            let dither = r as i32 - DITHER_AMP;
+            let span = 2 * amp as i64 + 1;
+            let r = (lcg(&mut state) >> 40) as i64 % span;
+            let dither = r as i32 - amp;
             *px = (base as i32 + dither).clamp(0, 255) as u8;
         }
         buf
@@ -42,15 +49,19 @@ pub mod synthetic {
 
     /// OK surface with a centered bright defect patch (~235 DN).
     pub fn defect_surface(seed: u64) -> Vec<u8> {
+        defect_at(seed, (STRIDE / 2) as usize, (HEIGHT / 2) as usize, 8, 235)
+    }
+
+    /// OK surface with a square defect of `size` at `(cx, cy)`, pixels set to
+    /// `value` (lower value vs the ~108..128 background = subtler defect).
+    pub fn defect_at(seed: u64, cx: usize, cy: usize, size: usize, value: u8) -> Vec<u8> {
         let mut buf = ok_surface(seed);
-        let cx = (STRIDE / 2) as usize;
-        let cy = (HEIGHT / 2) as usize;
-        for dy in 0..8 {
-            for dx in 0..8 {
+        for dy in 0..size {
+            for dx in 0..size {
                 let x = cx + dx;
                 let y = cy + dy;
                 if x < STRIDE as usize && y < HEIGHT as usize {
-                    buf[y * STRIDE as usize + x] = 235;
+                    buf[y * STRIDE as usize + x] = value;
                 }
             }
         }

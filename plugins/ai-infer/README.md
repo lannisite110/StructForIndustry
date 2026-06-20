@@ -49,7 +49,7 @@ cargo run --manifest-path plugins/ai-infer/Cargo.toml --bin sfi-anomaly -- \
 cargo run --manifest-path plugins/ai-infer/Cargo.toml --bin sfi-anomaly -- \
   dump --kind ng --out /tmp/ng.gray8
 
-# Three reports -> docs/reports/
+# Reports -> docs/reports/ (changeover / latency / illumination / error-rates)
 bash tools/scripts/anomaly-reports.sh
 ```
 
