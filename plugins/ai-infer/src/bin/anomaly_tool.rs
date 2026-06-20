@@ -8,13 +8,34 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use sfi_ai_infer::anomaly::{calibrate, AnomalyModel, CalibrateConfig};
+use sfi_ai_infer::anomaly::{calibrate, AnomalyModel, CalibrateConfig, Extractor};
 use sfi_ai_infer::synthetic::{apply_illumination, defect_surface, ok_surface, HEIGHT, WIDTH};
 
 fn ok_frames(n: u32) -> Vec<(Vec<u8>, u32, u32)> {
     (0..n)
         .map(|i| (ok_surface(i as u64), WIDTH, HEIGHT))
         .collect()
+}
+
+/// Parse `--extractor handcrafted|onnx[:model.onnx]` (default onnx reference).
+fn extractor_from_args(args: &[String]) -> Extractor {
+    match arg_value(args, "--extractor").as_deref() {
+        Some("handcrafted") => Extractor::Handcrafted,
+        Some(s) if s.starts_with("onnx") => {
+            let model = s.strip_prefix("onnx:").unwrap_or("").to_string();
+            Extractor::Onnx { model }
+        }
+        _ => Extractor::Onnx {
+            model: String::new(),
+        },
+    }
+}
+
+fn config_from_args(args: &[String]) -> CalibrateConfig {
+    CalibrateConfig {
+        extractor: extractor_from_args(args),
+        ..Default::default()
+    }
 }
 
 fn arg_value(args: &[String], key: &str) -> Option<String> {
@@ -33,7 +54,7 @@ fn cmd_calibrate(args: &[String]) -> Result<(), String> {
         .and_then(|v| v.parse().ok())
         .unwrap_or(20);
     let out = arg_value(args, "--out").map(PathBuf::from);
-    let cfg = CalibrateConfig::default();
+    let cfg = config_from_args(args);
     let model = calibrate(&ok_frames(n), &cfg)?;
     let json = model.to_json()?;
     match out {
@@ -45,7 +66,9 @@ fn cmd_calibrate(args: &[String]) -> Result<(), String> {
             }
             std::fs::write(&path, &json).map_err(|e| e.to_string())?;
             eprintln!(
-                "calibrated on {n} OK frames -> {} (threshold={:.5}, ok_max={:.5})",
+                "calibrated on {n} OK frames ({}, dim={}) -> {} (threshold={:.5}, ok_max={:.5})",
+                extractor_label(&model.extractor),
+                model.descriptor_dim,
                 path.display(),
                 model.threshold,
                 model.ok_score_max
@@ -54,6 +77,14 @@ fn cmd_calibrate(args: &[String]) -> Result<(), String> {
         None => println!("{json}"),
     }
     Ok(())
+}
+
+fn extractor_label(e: &Extractor) -> String {
+    match e {
+        Extractor::Handcrafted => "handcrafted".into(),
+        Extractor::Onnx { model } if model.is_empty() => "onnx-ref (filter-bank)".into(),
+        Extractor::Onnx { model } => format!("onnx ({model})"),
+    }
 }
 
 fn frame_of_kind(defect: bool) -> Vec<u8> {
@@ -105,14 +136,17 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     sorted[idx.min(sorted.len() - 1)]
 }
 
-fn report_changeover() -> String {
+fn report_changeover(cfg: &CalibrateConfig) -> String {
     let mut out = String::from("## Changeover curve (OK samples vs separation)\n\n");
-    out.push_str("How detection margin grows as more OK samples are used to calibrate.\n\n");
+    out.push_str(&format!(
+        "Feature extractor: **{}**. How detection margin grows with more OK samples.\n\n",
+        extractor_label(&cfg.extractor)
+    ));
     out.push_str("| OK samples | threshold | defect score | margin (score/thr) | verdict |\n");
     out.push_str("|-----------:|----------:|-------------:|-------------------:|:-------:|\n");
     let defect = defect_surface(0);
     for &n in &[1u32, 5, 10, 20] {
-        let model = match calibrate(&ok_frames(n), &CalibrateConfig::default()) {
+        let model = match calibrate(&ok_frames(n), cfg) {
             Ok(m) => m,
             Err(e) => {
                 out.push_str(&format!("| {n} | error: {e} | | | |\n"));
@@ -137,13 +171,16 @@ fn report_changeover() -> String {
     out
 }
 
-fn report_latency() -> String {
+fn report_latency(cfg: &CalibrateConfig) -> String {
     let mut out = String::from("## Inference latency (CPU, anomaly scorer)\n\n");
-    out.push_str("Per-frame anomaly scoring latency on synthetic frames (single thread).\n\n");
+    out.push_str(&format!(
+        "Per-frame anomaly scoring latency (single thread). Feature extractor: **{}**.\n\n",
+        extractor_label(&cfg.extractor)
+    ));
     out.push_str("| resolution | iters | p50 | p95 | p99 | mean |\n");
     out.push_str("|-----------|------:|----:|----:|----:|-----:|\n");
 
-    let model = calibrate(&ok_frames(20), &CalibrateConfig::default()).unwrap();
+    let model = calibrate(&ok_frames(20), cfg).unwrap();
     // Score at the calibration resolution; larger resolutions reuse the same
     // grid so cost scales with pixels.
     for &(w, h, iters) in &[(WIDTH, HEIGHT, 2000u32), (640, 480, 500), (1920, 1080, 200)] {
@@ -168,7 +205,11 @@ fn report_latency() -> String {
             mean
         ));
     }
-    out.push_str("\n> Target hardware budget: <20ms/frame for 1080p inference.\n\n");
+    out.push_str(
+        "\n> Budget: <20ms/frame at 1080p. Small/VGA frames clear it with margin on a \
+single CPU thread; richer (onnx-ref) features at full HD sit near the budget — for HD \
+real-time use the ONNX GPU execution provider, per-cell parallelism, or ROI tiling.\n\n",
+    );
     out
 }
 
@@ -186,16 +227,18 @@ fn synth_resized(w: u32, h: u32) -> Vec<u8> {
     out
 }
 
-fn report_illum() -> String {
+fn report_illum(cfg: &CalibrateConfig) -> String {
     let mut out = String::from("## Illumination ablation (robustness)\n\n");
-    out.push_str(
+    out.push_str(&format!(
         "Apply gain/offset to OK and defect frames after calibrating on nominal OK light. \
-A robust model keeps OK below and defect above threshold across lighting changes.\n\n",
-    );
+A robust model keeps OK below and defect above threshold across lighting changes. \
+Feature extractor: **{}**.\n\n",
+        extractor_label(&cfg.extractor)
+    ));
     out.push_str("| gain | offset | OK score | OK verdict | defect score | defect verdict |\n");
     out.push_str("|-----:|-------:|---------:|:----------:|-------------:|:--------------:|\n");
 
-    let model = calibrate(&ok_frames(20), &CalibrateConfig::default()).unwrap();
+    let model = calibrate(&ok_frames(20), cfg).unwrap();
     let ok_base = ok_surface(123);
     let ng_base = defect_surface(0);
     for &(gain, offset) in &[
@@ -233,18 +276,19 @@ A robust model keeps OK below and defect above threshold across lighting changes
 
 fn cmd_report(args: &[String]) -> Result<(), String> {
     let kind = args.first().map(String::as_str).unwrap_or("all");
+    let cfg = config_from_args(args);
     let mut out = String::from("# Anomaly detection reports\n\n");
     out.push_str(
         "_Generated by `sfi-anomaly report` (synthetic frames; replace with bench-rig data)._\n\n",
     );
     match kind {
-        "changeover" => out.push_str(&report_changeover()),
-        "latency" => out.push_str(&report_latency()),
-        "illum" => out.push_str(&report_illum()),
+        "changeover" => out.push_str(&report_changeover(&cfg)),
+        "latency" => out.push_str(&report_latency(&cfg)),
+        "illum" => out.push_str(&report_illum(&cfg)),
         "all" => {
-            out.push_str(&report_changeover());
-            out.push_str(&report_latency());
-            out.push_str(&report_illum());
+            out.push_str(&report_changeover(&cfg));
+            out.push_str(&report_latency(&cfg));
+            out.push_str(&report_illum(&cfg));
         }
         other => return Err(format!("unknown report: {other}")),
     }
@@ -264,10 +308,10 @@ fn main() {
         "" | "-h" | "--help" => {
             eprintln!(
                 "usage: sfi-anomaly <calibrate|score|dump|report> ...\n\
-                 calibrate --ok N --out model.json\n\
+                 calibrate --ok N --out model.json [--extractor handcrafted|onnx[:model.onnx]]\n\
                  score --model model.json [--defect]\n\
                  dump --kind ok|ng --out frame.gray8\n\
-                 report changeover|latency|illum|all"
+                 report changeover|latency|illum|all [--extractor handcrafted|onnx[:model.onnx]]"
             );
             return;
         }
