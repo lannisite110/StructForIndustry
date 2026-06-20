@@ -162,8 +162,3 @@ fn read_plugin_info(raw: &sfi_plugin_info) -> Result<PluginInfo, LoadError> {
         capabilities,
     })
 }
-
-#[cfg(test)]
-pub fn host_log_count() -> usize {
-    LOG_COUNTER.load(Ordering::SeqCst)
-}

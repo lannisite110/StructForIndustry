@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
@@ -88,5 +87,3 @@ impl HalPublisher {
         send_hal_notify(&mut self.stream, notify).await
     }
 }
-
-pub type SharedBus = Arc<CoreBus>;

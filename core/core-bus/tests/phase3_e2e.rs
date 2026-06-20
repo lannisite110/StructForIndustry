@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use sfi_core_bus::{
     BusConfig, CoreBus, HalFrameNotify, HalPublisher, POOL_ID_LEN, ProfileStore, SHM_NAME_LEN,
-    SOURCE_ID_LEN, SchedulerConfig, TaskScheduler, TOPIC_SPC_METRICS, TOPIC_TASK_DONE,
+    SOURCE_ID_LEN, SchedulerConfig, TaskScheduler, TOPIC_SPC_METRICS,
     run_hal_listener,
 };
 use sfi_plugin_host::run_mock_defect_detect_sidecar;

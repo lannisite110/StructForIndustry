@@ -7,8 +7,6 @@ use capnp::message::Builder;
 use sfi_plugin_host::TaskResponse;
 use sfi_contracts::result_capnp;
 
-pub const TOPIC_SPC_METRICS: &str = "spc.metrics";
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct SpcMetricValue {
     pub name: String,

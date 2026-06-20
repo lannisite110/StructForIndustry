@@ -5,12 +5,11 @@
 use std::ffi::{c_char, c_void, CStr};
 use std::slice;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 use capnp::message::{Builder, ReaderOptions};
 use capnp::serialize;
-use sfi_abi::{
-    sfi_host, sfi_plugin_info, SFI_API_VERSION_MAJOR, SFI_API_VERSION_MINOR,
-};
+use sfi_abi::{sfi_host, sfi_plugin_info, SFI_API_VERSION_MAJOR};
 use sfi_contracts::common_capnp::StatusCode;
 use sfi_contracts::result_capnp::{self, ResultStatus};
 use sfi_contracts::task_capnp::{task, task_input};
@@ -23,7 +22,12 @@ static CAP1: &[u8] = b"vision.detect.mock\0";
 static NAME: &[u8] = b"fake-plugin\0";
 static VERSION: &[u8] = b"0.0.1\0";
 
-static mut CAP_PTRS: [*const c_char; 2] = [std::ptr::null(), std::ptr::null()];
+struct CapTable([*const c_char; 2]);
+// Capability name pointers are immutable after init.
+unsafe impl Send for CapTable {}
+unsafe impl Sync for CapTable {}
+
+static CAP_TABLE: OnceLock<CapTable> = OnceLock::new();
 
 pub fn library_filename() -> &'static str {
     if cfg!(target_os = "windows") {
@@ -51,17 +55,22 @@ pub extern "C" fn sfi_init(
 
     if let Some(log) = host_ref.log_info {
         let msg = CStr::from_bytes_with_nul(b"fake-plugin: init\0").unwrap();
-        unsafe { log(msg.as_ptr()) };
+        log(msg.as_ptr());
     }
 
+    let ptrs = CAP_TABLE
+        .get_or_init(|| {
+            CapTable([
+                CAP0.as_ptr() as *const c_char,
+                CAP1.as_ptr() as *const c_char,
+            ])
+        })
+        .0;
+
     unsafe {
-        if CAP_PTRS[0].is_null() {
-            CAP_PTRS[0] = CAP0.as_ptr() as *const c_char;
-            CAP_PTRS[1] = CAP1.as_ptr() as *const c_char;
-        }
         (*out_info).name = NAME.as_ptr() as *const c_char;
         (*out_info).version = VERSION.as_ptr() as *const c_char;
-        (*out_info).capabilities = CAP_PTRS.as_mut_ptr();
+        (*out_info).capabilities = ptrs.as_ptr() as *mut *const c_char;
         (*out_info).capability_count = 2;
     }
 
@@ -113,7 +122,7 @@ pub extern "C" fn sfi_process_task(
     result_builder.set_plugin_name("fake-plugin");
     result_builder.set_plugin_version("0.0.1");
 
-    let mut payload = result_builder.init_payload();
+    let payload = result_builder.init_payload();
     let mut det_list = payload.init_detections();
     det_list.set_frame_id(frame_id);
     det_list.set_source_id("fake-source");

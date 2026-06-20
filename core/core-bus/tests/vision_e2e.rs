@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use sfi_core_bus::{
     BusConfig, CoreBus, HalFrameNotify, HalPublisher, POOL_ID_LEN, SHM_NAME_LEN, SOURCE_ID_LEN,
-    SchedulerConfig, TaskScheduler, TOPIC_SPC_METRICS, TOPIC_TASK_DONE, run_hal_listener,
+    SchedulerConfig, TaskScheduler, TOPIC_TASK_DONE, run_hal_listener,
 };
 use sfi_plugin_host::run_mock_defect_detect_sidecar;
 use tempfile::tempdir;

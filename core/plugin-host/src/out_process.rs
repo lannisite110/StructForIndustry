@@ -105,7 +105,7 @@ pub fn result_bytes_from_response(
     result.set_plugin_version(plugin_version);
 
     if !resp.detections.is_empty() {
-        let mut payload = result.init_payload();
+        let payload = result.init_payload();
         let mut list = payload.init_detections();
         list.set_frame_id(resp.task_id);
         list.set_source_id("vision-2d");
@@ -114,7 +114,7 @@ pub fn result_bytes_from_response(
             write_detection(dets.reborrow().get(i as u32), det);
         }
     } else if !resp.metrics.is_empty() {
-        let mut payload = result.init_payload();
+        let payload = result.init_payload();
         let mut metrics = payload.init_metrics();
         metrics.set_frame_id(resp.task_id);
         let mut vals = metrics.init_values(resp.metrics.len() as u32);

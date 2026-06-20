@@ -67,10 +67,6 @@ pub fn encode_request(req: &TaskRequest) -> Result<Vec<u8>, serde_json::Error> {
     serde_json::to_vec(req)
 }
 
-pub fn decode_response(bytes: &[u8]) -> Result<TaskResponse, serde_json::Error> {
-    serde_json::from_slice(bytes)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
