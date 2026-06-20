@@ -25,7 +25,7 @@ struct TaskInput {
     frameRef @1 :Frame.FrameRef;
     # Full frame for tests, small images, or replay without shm pool.
     frame @2 :Frame.Frame;
-    # Domain-specific serialized input (quant book, genomic batch, ...).
+    # Domain-specific serialized input (e.g. ROI params, recipe blob).
     raw @3 :Data;
   }
 }

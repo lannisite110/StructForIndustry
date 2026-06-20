@@ -1,7 +1,15 @@
-# sfi-platform 分阶段开发路线图
+# StructForIndustry 分阶段开发路线图
 
-> Org: **StructForIndustry** · Repo: **sfi-platform** (monorepo)  
-> 主战场领域: `domains/industrial-inspection` · 其余五领域 scaffold 并行占位
+> Repo: **StructForIndustry** (monorepo)  
+> **唯一领域**: `domains/industrial-inspection`（工业 AOI 边缘检测平台）
+
+> **收敛声明 (2026-06)**: 平台已从「六领域通用框架」**钉死**为单一工业 AOI 平台。
+> 其余五领域 scaffold（robotics / quant / aerospace / biomed / cloud-edge）**已删除**，
+> 不再保留 README / manifest。core/* 仍是可复用地基，但短期内不再开第二领域。
+> 主线只做一件事：**让平台产出三张表** ——
+> 1. 换型曲线（5/10/20 OK 样本）
+> 2. 推理延迟表（CPU vs GPU，目标 <20ms）
+> 3. 光照 ablation（实验台数据）
 
 ## 总览
 
@@ -11,12 +19,12 @@
 | 1 | 核心主库 MVP | 6–10 周 | hal-rs、core-bus、plugin-host | 单相机帧进入总线 |
 | 2 | 数学核 + 技术插件 | 4–6 周 | math-kernel、vision-2d | Julia 进程处理共享内存帧 |
 | 3 | 工业标杆领域包 | 6–10 周 | industrial-inspection 端到端 | AOI demo：检测 + API + 审计 |
-| 4 | AI 推理插件 | 4–6 周 | ai-infer (Mojo/ONNX) | 同 Task 类型替换 CPU 推理 |
-| 5 | 云边载体 + 多领域扩展 | 8–12 周 | cloud-edge agent、第 2 领域试点 | 边缘部署 + 另一领域最小插件 |
-| 6 | 生态与拆库准备 | 持续 | CLI、模板、兼容性矩阵 | 外部贡献者可独立开发插件 |
+| 4 | AI 推理插件 | 4–6 周 | ai-infer (ONNX + `ort`) | 同 Task 类型替换 CPU 推理；OK-only 模型落地 |
+| 5 | 边缘部署收尾 | 4–8 周 | Docker/边缘 runtime、三张表 | 单机边缘可部署 + 换型/延迟/光照报告 |
 
-**合计（到 Phase 3 可演示产品）**: 约 **4–6 个月**  
-**合计（到 Phase 5 平台化）**: 约 **8–14 个月**
+**合计（到 Phase 3 可演示产品）**: 约 **4–6 个月**
+
+> Phase 5 不再做「第二领域试点」与「生态拆库」；冻结多领域扩张，集中灌内容。
 
 ---
 
@@ -115,82 +123,53 @@
 
 | 模块 | 语言 | 交付物 | 内容要点 |
 |------|------|--------|----------|
-| `plugins/ai-infer` | Mojo 或 ONNX RT | 推理插件 | 加载 ONNX；`Task.type = infer.onnx` |
-| 模型管线 | — | 文档 | Julia 训练/导出 → ONNX → ai-infer |
+| `plugins/ai-infer` | ONNX RT (`ort`) | 推理插件 | 加载 ONNX；`Task.type = infer.onnx`（默认 reference stub，`--features onnx` 走真 ORT） |
+| OK-only 模型 | — | 模型 | PatchCore / EfficientAD 异常检测，塞进 ai-infer |
+| 模型管线 | — | 文档 | 训练/导出 → ONNX → ai-infer |
 | 资源管理 | Rust | plugin-host 扩展 | GPU 显存配额、批推理、队列合并 |
 | A/B 路径 | industrial | 配置开关 | 同一工位：传统 CV vs 深度学习对比 |
-| 基准 | `tests/bench/` | 报告 | CPU vs GPU 延迟、吞吐、功耗 |
+| 基准 | `tests/bench/` | 报告 | CPU vs GPU 延迟、吞吐 |
 
-**里程碑**: 1080p 推理端到端 **< 20ms**（目标硬件上）；Julia 检测与 Mojo/ONNX 可配置切换。
+**里程碑**: 1080p 推理端到端 **< 20ms**（目标硬件上）；Julia 检测与 ONNX 可配置切换。
 
 **人力（估）**: 1 ML + 1 Rust，约 4–6 周。
 
-**风险**: Mojo 生态变化 — **主路径 ONNX + Rust `ort`**，Mojo 作为加速插件可选。
+**主路径**: ONNX + Rust `ort`。Mojo 不在主线（hobby 可选）。
 
 ---
 
-## Phase 5 — 云边载体 + 第二领域试点
+## Phase 5 — 边缘部署收尾 + 三张表
 
-**目标**: 从「单机 AOI」升级为「可部署的平台」，并验证架构跨领域复用。
+**目标**: 从「单机 AOI」升级为「可部署的边缘产品」，并输出对外可信的量化结果。
 
 | 模块 | 路径 | 交付物 | 内容要点 |
 |------|------|--------|----------|
-| 边缘 Agent | `domains/cloud-edge` | Rust + Zig | 轻量 runtime、远程配置、健康上报 |
-| 多租户 | `core/core-bus` | RBAC 雏形 | 租户配额、配置隔离 |
-| 集群配置 | `cloud-edge/profiles` | YAML | `edge-agent` 背压、队列、资源上限 |
-| 第二领域 | 择一试点 | 最小插件 | 建议 **quant-finance（回测批处理）** 或 **robotics（传感器 mock）** |
-| 部署 | `examples/deploy` | Docker/K8s | 单机 compose + 可选 K8s manifest |
-| 可观测 | — | metrics/logs | Prometheus 指标：fps、延迟、队列深度、插件重启次数 |
+| 边缘 runtime | `domains/industrial-inspection` | Rust + Zig | 轻量部署、远程配置、健康上报 |
+| 部署 | `examples/deploy` | Docker | 单机 compose（已有 docker-demo-smoke） |
+| 可观测 | — | metrics/logs | Prometheus：fps、延迟、队列深度、插件重启次数（已有 metrics 雏形） |
+| **三张表** | `docs/` 或 report | 报告 | 换型曲线 / 推理延迟表 / 光照 ablation |
 
-**里程碑**: 同一 `sfi-platform` 版本，工业边缘节点 + 云端分析节点可独立部署；第二领域至少 1 个可运行 example。
+**里程碑**: 工业边缘节点可独立部署；产出换型、延迟、光照三张表。
 
-**人力（估）**: 2 平台 + 1 领域，约 8–12 周。
+**人力（估）**: 1–2 平台，约 4–8 周。
 
----
-
-## Phase 6 — 生态与拆库准备（持续）
-
-**目标**: 降低贡献门槛；为合规/团队独立发布预留路径。
-
-| 事项 | 交付物 | 内容要点 |
-|------|--------|----------|
-| `sfi-cli` 完善 | 工具 | `plugin new`, `domain scaffold`, 契约版本检查 |
-| 插件模板 | `tools/templates/` | Rust in-process / Julia out-of-process / Mojo 模板 |
-| 兼容性矩阵 | `docs/COMPAT.md` | core apiVersion × 各插件版本 |
-| 领域拆库 | 文档 + 脚本 | `sfi-domain-industrial` 等命名与迁移指南 |
-| `sfi-meta`（可选） | 独立导航仓 | 多仓 clone 脚本、生态索引 |
-| 社区 | GitHub | Issue 模板、RFC 流程、good first issue |
-
-**里程碑**: 外部开发者仅凭模板 + 文档，可在 1 天内提交一个只读 demo 插件 PR。
-
----
-
-## 六领域并行节奏（非主战场）
-
-| 领域 | Phase 0–2 | Phase 3–4 | Phase 5+ |
-|------|-----------|-----------|----------|
-| industrial-inspection | manifest + profile | **满血 MVP** | MES、多工位、Mojo 推理 |
-| cloud-edge | scaffold | 观测性、配置下发 | 边缘 Agent、K8s |
-| autonomous-robotics | scaffold | mock 传感器 + 1 个规划原型插件 | HAL 扩展（LiDAR mock） |
-| quant-finance | scaffold | Julia 回测 batch 示例 | 低延迟路径调研 |
-| bio-medical | scaffold | 批处理 pipeline 示例 | 合规钩子细化 |
-| aerospace-defense | scaffold | Julia 仿真示例 | 确定性调度 profile |
-
-**原则**: 契约与 core 稳定前，其它领域 **只维护 README + manifest + 1 个 example 占位**，避免六线全开。
+> **冻结**: 不做第二领域试点、不做生态拆库 / 插件模板市场。多领域扩张是负债，
+> 集中资源把工业 AOI 一条线灌满内容（OK-only 模型、误报表、延迟表）。
 
 ---
 
 ## 技术栈分工（各阶段参与度）
 
-| 阶段 | Zig | Rust | Julia | Mojo |
-|------|-----|------|-------|------|
+| 阶段 | Zig | Rust | Julia | ONNX/`ort` |
+|------|-----|------|-------|------------|
 | 0 | 低 | 高 | 低 | — |
 | 1 | 高 | 高 | — | — |
 | 2 | 低 | 高 | 高 | — |
 | 3 | 中 | 高 | 高 | — |
-| 4 | — | 高 | 中 | 高（可选） |
+| 4 | — | 高 | 中 | 高 |
 | 5 | 中 | 高 | 中 | 中 |
-| 6 | 低 | 中 | 低 | 低 |
+
+> Zig/HAL「够用就好」（能采到帧即可），不为采集层再投半年。Mojo 不在主线。
 
 ---
 
@@ -202,9 +181,7 @@ flowchart LR
   P1 --> P2[Phase 2 数学核]
   P2 --> P3[Phase 3 工业 Demo]
   P3 --> P4[Phase 4 AI 推理]
-  P3 --> P5[Phase 5 云边]
-  P4 --> P5
-  P5 --> P6[Phase 6 生态]
+  P4 --> P5[Phase 5 边缘部署 + 三张表]
 ```
 
 ---
@@ -213,12 +190,10 @@ flowchart LR
 
 | 优先级 | 投入 | 说明 |
 |--------|------|------|
-| P0 | 必须 | 无契约则多语言协作成本指数上升 |
 | P0 | 必须 | Phase 1 采集 + 总线 — 一切的地基 |
 | P1 | 强烈建议 | Phase 3 工业 Demo — 验证商业叙事 |
-| P2 | 建议 | Phase 4 GPU — 差异化，可略晚于 Demo |
-| P3 | 按需 | Phase 5 第二领域 — 根据客户/融资方向选择 |
-| P4 | 持续 | Phase 6 — 有外部贡献者时加大投入 |
+| P1 | 强烈建议 | Phase 4 OK-only 模型 + 延迟表 — 真正的差异化与硬证据 |
+| P2 | 建议 | Phase 5 边缘部署 + 三张表 |
 
 ---
 

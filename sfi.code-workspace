@@ -29,26 +29,6 @@
       "path": "domains/industrial-inspection"
     },
     {
-      "name": "🚗 autonomous-robotics",
-      "path": "domains/autonomous-robotics"
-    },
-    {
-      "name": "📈 quant-finance",
-      "path": "domains/quant-finance"
-    },
-    {
-      "name": "🧬 bio-medical",
-      "path": "domains/bio-medical"
-    },
-    {
-      "name": "🛩️ aerospace-defense",
-      "path": "domains/aerospace-defense"
-    },
-    {
-      "name": "☁️ cloud-edge",
-      "path": "domains/cloud-edge"
-    },
-    {
       "name": "🔌 plugins",
       "path": "plugins"
     },

@@ -2,7 +2,7 @@
 
 2D vision utilities — detection, measurement, SPC hooks.
 
-Used heavily by `domains/industrial-inspection` and reusable by robotics / medical imaging.
+Used by `domains/industrial-inspection` (AOI line).
 
 ## Run (Julia sidecar)
 
@@ -22,4 +22,4 @@ Wire format: [`core/contracts/plugin_wire.md`](../core/contracts/plugin_wire.md)
 
 Rust mock sidecar (no Julia required): `sfi_plugin_host::run_mock_vision_sidecar` — used by `core/core-bus/tests/vision_e2e.rs`.
 
-Part of [sfi-platform](https://github.com/StructForIndustry/sfi-platform) · Layer: Tech plugin
+Part of StructForIndustry · Layer: Tech plugin
