@@ -12,7 +12,7 @@ use tracing::{info, warn};
 use crate::bus::CoreBus;
 use crate::hal_ipc::HalFrameNotify;
 use crate::mes::{post_mes_report, InspectionReport};
-use crate::profile::{algorithm_params_json, DispatchParams, ProfileStore, VisionSection};
+use crate::profile::{algorithm_params_json, measure_params_json, DispatchParams, ProfileStore, VisionSection};
 use crate::spc::metrics_payload_bytes;
 
 #[derive(Clone, Debug)]
@@ -186,6 +186,10 @@ async fn dispatch_one(
         .profile()
         .map(|p| algorithm_params_json(&p.snapshot().vision))
         .unwrap_or_else(|| algorithm_params_json(&VisionSection::default()));
+    let measure = bus
+        .profile()
+        .map(|p| measure_params_json(&p.snapshot().measure))
+        .unwrap_or_else(|| measure_params_json(&crate::profile::MeasureSection::default()));
 
     let req = task_request_from_hal(
         task_id,
@@ -205,6 +209,7 @@ async fn dispatch_one(
                 "height": params.roi_height,
             },
             "algorithm": algorithm,
+            "measure": measure,
         }),
     );
 

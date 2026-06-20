@@ -1,0 +1,60 @@
+# AOI line measure profile — Phase B (edge / dimension)
+name: line-measure
+domain: industrial-inspection
+version: 0.0.1
+
+scheduler:
+  mode: realtime
+  dropStaleFrames: true
+  maxQueueDepth: 2
+  defaultDeadlineMs: 50
+  autoVision: true
+  taskType: vision.measure.edge
+
+vision:
+  plugin: defect-detect
+  threshold: 128
+  roi:
+    x: 0
+    y: 0
+    width: 1920
+    height: 1080
+
+measure:
+  mmPerPixel: 0.1
+  edge:
+    x0: 400
+    y0: 540
+    x1: 1520
+    y1: 540
+    polarity: rising
+  dimension:
+    kind: edge_position
+    nominal: 960.0
+    tolerance: 2.0
+
+hal:
+  captureMode: triggered
+  framePoolSize: 8
+  resolution:
+    width: 1920
+    height: 1080
+
+spc:
+  windowSize: 32
+  persist: true
+  persistCapacity: 4096
+  metrics:
+    - edge_position_px
+    - edge_position_mm
+    - ng_rate
+
+mes:
+  enabled: false
+  endpoint: "http://127.0.0.1:8090/inspection/result"
+  batchId: line-measure-1
+
+compliance:
+  auditConfigChanges: true
+  retainResultsDays: 90
+  policy: compliance/audit-policy.yaml

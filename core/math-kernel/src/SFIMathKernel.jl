@@ -7,6 +7,7 @@ include("filter.jl")
 include("threshold.jl")
 include("morphology.jl")
 include("components.jl")
+include("measure.jl")
 
 export gray_threshold,
     bright_pixel_count,
@@ -27,7 +28,16 @@ export gray_threshold,
     connected_components_labels,
     blob_stats_from_labels,
     filter_blobs,
-    largest_blob
+    largest_blob,
+    sobel_magnitude,
+    parabolic_subpixel,
+    edge_caliper_horizontal,
+    edge_caliper_vertical,
+    fit_line,
+    fit_circle,
+    distance_point_to_line,
+    measure_line_width_horizontal,
+    measure_circle_diameter_horizontal
 
 """
     gray_threshold(data, threshold) -> BitVector

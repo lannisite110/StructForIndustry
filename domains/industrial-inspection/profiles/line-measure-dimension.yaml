@@ -1,0 +1,45 @@
+# AOI dimension measure — line width on horizontal caliper
+name: line-measure-dimension
+domain: industrial-inspection
+version: 0.0.1
+
+scheduler:
+  mode: realtime
+  dropStaleFrames: true
+  maxQueueDepth: 2
+  defaultDeadlineMs: 50
+  autoVision: true
+  taskType: vision.measure.dimension
+
+vision:
+  plugin: defect-detect
+  threshold: 128
+  roi:
+    x: 0
+    y: 0
+    width: 640
+    height: 480
+
+measure:
+  mmPerPixel: 0.05
+  edge:
+    x0: 0
+    y0: 240
+    x1: 639
+    y1: 240
+    polarity: rising
+  dimension:
+    kind: line_width
+    nominal: 40.0
+    tolerance: 2.0
+
+spc:
+  windowSize: 32
+  persist: true
+  metrics:
+    - line_width_px
+    - line_width_mm
+    - ng_rate
+
+compliance:
+  auditConfigChanges: true

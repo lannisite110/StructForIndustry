@@ -1,6 +1,8 @@
 using JSON3
 using Mmap
 using SFIDefectDetect
+include("src/SFIVisionMeasure.jl")
+using .SFIVisionMeasure
 using Sockets
 
 const WIRE_API_VERSION = 1
@@ -69,6 +71,18 @@ function process_task(req)
     roi = get(params, "roi", nothing)
     if roi !== nothing
         pixels, width, height = crop_roi_pixels(pixels, width, height, roi)
+    end
+    task_type = string(get(req, :task_type, "vision.detect.defect"))
+    if startswith(task_type, "vision.measure.")
+        return process_measure_task(
+            pixels,
+            width,
+            height,
+            params;
+            task_id=req.task_id,
+            task_type=task_type,
+            message="defect-detect measure",
+        )
     end
     return process_defect_task(
         pixels,

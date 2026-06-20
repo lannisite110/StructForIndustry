@@ -11,6 +11,7 @@ Phase A industrial primitives:
 | Preprocess | `gaussian_blur_3x3`, `median_filter_3x3`, `apply_preproc` |
 | Morphology | `morph_erode/dilate/open/close_3x3`, `apply_morph` |
 | Blobs | `connected_components_labels`, `blob_stats_from_labels`, `filter_blobs`, `largest_blob` |
+| Measure | `edge_caliper_horizontal/vertical`, `measure_line_width_horizontal`, `measure_circle_diameter_horizontal`, `fit_line`, `fit_circle` |
 | Legacy | `bright_pixel_count`, `connected_components_count` |
 
 ```bash

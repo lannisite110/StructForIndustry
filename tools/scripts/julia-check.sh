@@ -38,6 +38,31 @@ include("domains/industrial-inspection/plugins/defect-detect/server_impl.jl")
 println("defect-detect server_impl OK")
 '
 
+echo "== SFIVisionMeasure =="
+julia --project=domains/industrial-inspection/plugins/defect-detect -e '
+using Pkg
+Pkg.instantiate()
+include("domains/industrial-inspection/plugins/defect-detect/src/SFIVisionMeasure.jl")
+using .SFIVisionMeasure
+w, h = 128, 64
+buf = Vector{UInt8}(undef, w * h)
+for y in 0:(h - 1), x in 0:(w - 1)
+    buf[y * w + x + 1] = x < 48 ? 30 : 220
+end
+buf[32 * w + 49] = 125
+resp = process_measure_task(
+    buf, w, h,
+    Dict("measure" => Dict(
+        "mmPerPixel" => 0.1,
+        "edge" => Dict("x0" => 0, "y0" => 32, "x1" => 127, "polarity" => "rising"),
+    ));
+    task_id=1,
+)
+@assert resp["status"] == "ok"
+@assert any(m -> m["name"] == "edge_position_px", resp["metrics"])
+println("SFIVisionMeasure OK")
+'
+
 echo "== spc-metrics =="
 julia --project=domains/industrial-inspection/plugins/spc-metrics -e '
 using Pkg

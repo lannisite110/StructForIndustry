@@ -31,6 +31,8 @@ pub struct LineProfile {
     pub mes: MesSection,
     #[serde(default)]
     pub compliance: ComplianceSection,
+    #[serde(default)]
+    pub measure: MeasureSection,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
@@ -119,6 +121,50 @@ fn default_max_area() -> u32 {
 }
 fn default_max_aspect() -> f64 {
     100.0
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MeasureSection {
+    #[serde(default)]
+    pub mm_per_pixel: f64,
+    #[serde(default)]
+    pub edge: MeasureEdgeSection,
+    #[serde(default)]
+    pub dimension: MeasureDimensionSection,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+pub struct MeasureEdgeSection {
+    #[serde(default)]
+    pub x0: u32,
+    #[serde(default)]
+    pub y0: u32,
+    #[serde(default)]
+    pub x1: u32,
+    #[serde(default)]
+    pub y1: u32,
+    #[serde(default = "default_polarity")]
+    pub polarity: String,
+}
+
+fn default_polarity() -> String {
+    "rising".into()
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MeasureDimensionSection {
+    #[serde(default = "default_dim_kind")]
+    pub kind: String,
+    #[serde(default)]
+    pub nominal: f64,
+    #[serde(default)]
+    pub tolerance: f64,
+}
+
+fn default_dim_kind() -> String {
+    "edge_position".into()
 }
 
 fn default_plugin() -> String {
@@ -378,6 +424,25 @@ pub fn algorithm_params_json(vision: &VisionSection) -> serde_json::Value {
     })
 }
 
+/// Task `params.measure` block for `vision.measure.*` tasks.
+pub fn measure_params_json(measure: &MeasureSection) -> serde_json::Value {
+    serde_json::json!({
+        "mmPerPixel": measure.mm_per_pixel,
+        "edge": {
+            "x0": measure.edge.x0,
+            "y0": measure.edge.y0,
+            "x1": measure.edge.x1,
+            "y1": measure.edge.y1,
+            "polarity": measure.edge.polarity,
+        },
+        "dimension": {
+            "kind": measure.dimension.kind,
+            "nominal": measure.dimension.nominal,
+            "tolerance": measure.dimension.tolerance,
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,6 +466,18 @@ mod tests {
         assert_eq!(store.snapshot().name, "lab-batch");
         assert!(!store.snapshot().scheduler.drop_stale_frames);
         assert_eq!(store.snapshot().scheduler.max_queue_depth, 64);
+    }
+
+    #[test]
+    fn loads_line_measure_profile() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = root.join("domains/industrial-inspection/profiles/line-measure.yaml");
+        let store = ProfileStore::load(path).expect("load");
+        assert_eq!(store.snapshot().name, "line-measure");
+        assert_eq!(store.params().task_type, "vision.measure.edge");
+        assert_eq!(store.snapshot().measure.edge.polarity, "rising");
+        let json = measure_params_json(&store.snapshot().measure);
+        assert_eq!(json["mmPerPixel"], 0.1);
     }
 
     #[test]

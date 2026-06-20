@@ -8,8 +8,9 @@ use tokio::net::{UnixListener, UnixStream};
 use crate::mock_vision::encode_framed_response;
 use crate::plugin_wire::{BBox, Detection, Metric, TaskRequest, TaskResponse};
 use crate::shm_gray8::{
-    bright_pixel_count, bright_pixels_in_roi_limit, crop_roi, gray_mean, gray_mean_roi, mmap_gray8,
-    read_gray8,
+    bright_pixel_count, bright_pixels_in_roi_limit, crop_roi, edge_caliper_horizontal,
+    edge_caliper_vertical, gray_mean, gray_mean_roi, measure_circle_diameter_horizontal,
+    measure_line_width_horizontal, mmap_gray8, read_gray8,
 };
 
 pub async fn run_mock_defect_detect_sidecar(socket_path: &Path) -> std::io::Result<()> {
@@ -57,6 +58,10 @@ async fn handle_connection(mut stream: UnixStream) -> std::io::Result<()> {
 }
 
 pub fn mock_defect_response(req: &TaskRequest) -> TaskResponse {
+    if req.task_type.starts_with("vision.measure.") {
+        return mock_measure_response(req);
+    }
+
     let threshold = req
         .params
         .get("threshold")
@@ -71,6 +76,253 @@ pub fn mock_defect_response(req: &TaskRequest) -> TaskResponse {
     }
 
     fallback_response(req, threshold)
+}
+
+fn measure_cfg(req: &TaskRequest) -> (f64, u32, u32, u32, u32, String, String, f64, f64) {
+    let measure = req.params.get("measure");
+    let edge = measure.and_then(|m| m.get("edge"));
+    let dim = measure.and_then(|m| m.get("dimension"));
+    let mm = measure
+        .and_then(|m| m.get("mmPerPixel"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let x0 = edge
+        .and_then(|e| e.get("x0"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let y0 = edge
+        .and_then(|e| e.get("y0"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let x1 = edge
+        .and_then(|e| e.get("x1"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(req.frame.width as u64) as u32;
+    let y1 = edge
+        .and_then(|e| e.get("y1"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(y0 as u64) as u32;
+    let polarity = edge
+        .and_then(|e| e.get("polarity"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("rising")
+        .to_string();
+    let dim_kind = dim
+        .and_then(|d| d.get("kind"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("edge_position")
+        .to_string();
+    let nominal = dim
+        .and_then(|d| d.get("nominal"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let tolerance = dim
+        .and_then(|d| d.get("tolerance"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    (mm, x0, y0, x1, y1, polarity, dim_kind, nominal, tolerance)
+}
+
+pub fn mock_measure_response(req: &TaskRequest) -> TaskResponse {
+    if let Ok(mmap) = mmap_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset) {
+        return measure_response_from_pixels(req, &mmap, "mock measure (shm-mmap)");
+    }
+    if let Ok(pixels) = read_gray8(&req.frame.shm_name, req.frame.byte_length, req.frame.offset) {
+        return measure_response_from_pixels(req, &pixels, "mock measure (shm)");
+    }
+    TaskResponse {
+        task_id: req.task_id,
+        status: "error".into(),
+        message: "mock measure: no shm".into(),
+        detections: vec![],
+        metrics: vec![],
+    }
+}
+
+fn measure_response_from_pixels(req: &TaskRequest, pixels: &[u8], msg: &str) -> TaskResponse {
+    let (work, w, h) = apply_roi(req, pixels);
+    let (mm, x0, y0, x1, y1, polarity, dim_kind, nominal, _tolerance) = measure_cfg(req);
+    let x1_eff = if x1 > 0 { x1.min(w) } else { w };
+    let y1_eff = if y1 > 0 { y1.min(h) } else { y0 };
+
+    if req.task_type == "vision.measure.dimension" && dim_kind == "line_width" {
+        let result = measure_line_width_horizontal(&work, w, h, y0, x0, x1_eff.saturating_sub(1));
+        if let Some((width_px, left_x, right_x, strength)) = result {
+            let mut metrics = vec![
+                Metric {
+                    name: "line_width_px".into(),
+                    value: width_px,
+                    unit: "px".into(),
+                },
+                Metric {
+                    name: "edge_strength".into(),
+                    value: strength,
+                    unit: "dn".into(),
+                },
+            ];
+            if mm > 0.0 {
+                metrics.push(Metric {
+                    name: "line_width_mm".into(),
+                    value: width_px * mm,
+                    unit: "mm".into(),
+                });
+            }
+            if nominal > 0.0 {
+                metrics.push(Metric {
+                    name: "dimension_deviation_px".into(),
+                    value: width_px - nominal,
+                    unit: "px".into(),
+                });
+                if mm > 0.0 {
+                    metrics.push(Metric {
+                        name: "dimension_deviation_mm".into(),
+                        value: (width_px - nominal) * mm,
+                        unit: "mm".into(),
+                    });
+                }
+            }
+            return TaskResponse {
+                task_id: req.task_id,
+                status: "ok".into(),
+                message: msg.into(),
+                detections: vec![Detection {
+                    class_id: 11,
+                    label: "line_width".into(),
+                    score: 0.9,
+                    bbox: BBox {
+                        x: left_x as f32,
+                        y: y0 as f32,
+                        width: (right_x - left_x) as f32,
+                        height: 1.0,
+                    },
+                }],
+                metrics,
+            };
+        }
+        return measure_error(req, msg, "no edges for line_width");
+    }
+
+    if req.task_type == "vision.measure.dimension" && dim_kind == "circle_diameter" {
+        let result = measure_circle_diameter_horizontal(&work, w, h, y0, x0, x1_eff.saturating_sub(1));
+        if let Some((diam, radius, left_x, right_x)) = result {
+            let mut metrics = vec![
+                Metric {
+                    name: "circle_diameter_px".into(),
+                    value: diam,
+                    unit: "px".into(),
+                },
+                Metric {
+                    name: "circle_radius_px".into(),
+                    value: radius,
+                    unit: "px".into(),
+                },
+            ];
+            if mm > 0.0 {
+                metrics.push(Metric {
+                    name: "circle_diameter_mm".into(),
+                    value: diam * mm,
+                    unit: "mm".into(),
+                });
+            }
+            if nominal > 0.0 {
+                metrics.push(Metric {
+                    name: "dimension_deviation_px".into(),
+                    value: diam - nominal,
+                    unit: "px".into(),
+                });
+            }
+            let cx = (left_x + right_x) / 2.0;
+            return TaskResponse {
+                task_id: req.task_id,
+                status: "ok".into(),
+                message: msg.into(),
+                detections: vec![Detection {
+                    class_id: 11,
+                    label: "circle".into(),
+                    score: 0.9,
+                    bbox: BBox {
+                        x: (cx - radius) as f32,
+                        y: (y0 as f64 - 1.0) as f32,
+                        width: diam as f32,
+                        height: 2.0,
+                    },
+                }],
+                metrics,
+            };
+        }
+        return measure_error(req, msg, "no circle diameter");
+    }
+
+    let edge = if y0 == y1_eff {
+        edge_caliper_horizontal(&work, w, h, y0, x0, x1_eff.saturating_sub(1), &polarity)
+    } else if x0 == x1_eff {
+        edge_caliper_vertical(&work, w, h, x0, y0, y1_eff.saturating_sub(1), &polarity)
+    } else {
+        edge_caliper_horizontal(&work, w, h, y0, x0, x1_eff.saturating_sub(1), &polarity)
+    };
+    if let Some((pos, strength)) = edge {
+        let mut metrics = vec![
+            Metric {
+                name: "edge_position_px".into(),
+                value: pos,
+                unit: "px".into(),
+            },
+            Metric {
+                name: "edge_strength".into(),
+                value: strength,
+                unit: "dn".into(),
+            },
+        ];
+        if mm > 0.0 {
+            metrics.push(Metric {
+                name: "edge_position_mm".into(),
+                value: pos * mm,
+                unit: "mm".into(),
+            });
+        }
+        if nominal > 0.0 {
+            metrics.push(Metric {
+                name: "edge_deviation_px".into(),
+                value: pos - nominal,
+                unit: "px".into(),
+            });
+            if mm > 0.0 {
+                metrics.push(Metric {
+                    name: "edge_deviation_mm".into(),
+                    value: (pos - nominal) * mm,
+                    unit: "mm".into(),
+                });
+            }
+        }
+        return TaskResponse {
+            task_id: req.task_id,
+            status: "ok".into(),
+            message: msg.into(),
+            detections: vec![Detection {
+                class_id: 10,
+                label: "edge".into(),
+                score: (strength / 255.0).min(0.99) as f32,
+                bbox: BBox {
+                    x: (pos - 1.0) as f32,
+                    y: (y0 as f64 - 1.0) as f32,
+                    width: 2.0,
+                    height: 2.0,
+                },
+            }],
+            metrics,
+        };
+    }
+    measure_error(req, msg, "no edge")
+}
+
+fn measure_error(req: &TaskRequest, msg: &str, err: &str) -> TaskResponse {
+    TaskResponse {
+        task_id: req.task_id,
+        status: "error".into(),
+        message: format!("{}: {}", msg, err),
+        detections: vec![],
+        metrics: vec![],
+    }
 }
 
 fn response_from_mmap(req: &TaskRequest, mmap: &[u8], threshold: u8) -> TaskResponse {
@@ -257,7 +509,7 @@ fn fallback_response(req: &TaskRequest, threshold: u8) -> TaskResponse {
 mod tests {
     use super::*;
     use crate::plugin_wire::{FrameRef, WIRE_API_VERSION};
-    use crate::shm_gray8::{resolve_shm_path, write_test_pattern};
+    use crate::shm_gray8::{resolve_shm_path, write_measure_edge_pattern, write_test_pattern};
     use std::time::Duration;
     use tempfile::tempdir;
     use tokio::time::timeout;
@@ -290,6 +542,43 @@ mod tests {
         );
         assert!(!resp.detections.is_empty());
         let _ = resolve_shm_path;
+    }
+
+    #[test]
+    fn mock_measure_edge_from_shm() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("edge.raw");
+        write_measure_edge_pattern(&path, 128, 64, 32, 48, 30, 220).unwrap();
+        let req = TaskRequest {
+            api_version: WIRE_API_VERSION,
+            task_id: 2,
+            task_type: "vision.measure.edge".into(),
+            frame: FrameRef {
+                frame_id: 2,
+                width: 128,
+                height: 64,
+                stride: 128,
+                format: "gray8".into(),
+                shm_name: path.to_string_lossy().into(),
+                byte_length: 128 * 64,
+                offset: 0,
+            },
+            params: serde_json::json!({
+                "measure": {
+                    "mmPerPixel": 0.1,
+                    "edge": { "x0": 0, "y0": 32, "x1": 127, "y1": 32, "polarity": "rising" }
+                }
+            }),
+        };
+        let resp = mock_measure_response(&req);
+        assert_eq!(resp.status, "ok");
+        let pos = resp
+            .metrics
+            .iter()
+            .find(|m| m.name == "edge_position_px")
+            .unwrap()
+            .value;
+        assert!(pos > 45.0 && pos < 52.0);
     }
 
     #[tokio::test]

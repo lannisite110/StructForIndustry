@@ -1,0 +1,44 @@
+# E2E profile for measure scripts (64×48, matches line-frame defaults)
+name: line-measure-e2e
+domain: industrial-inspection
+version: 0.0.1
+
+scheduler:
+  mode: realtime
+  dropStaleFrames: true
+  maxQueueDepth: 2
+  defaultDeadlineMs: 50
+  autoVision: true
+  taskType: vision.measure.edge
+
+vision:
+  plugin: defect-detect
+  threshold: 128
+  roi:
+    x: 0
+    y: 0
+    width: 64
+    height: 48
+
+measure:
+  mmPerPixel: 0.1
+  edge:
+    x0: 0
+    y0: 24
+    x1: 63
+    y1: 24
+    polarity: rising
+  dimension:
+    kind: edge_position
+    nominal: 32.0
+    tolerance: 4.0
+
+spc:
+  windowSize: 8
+  persist: false
+  metrics:
+    - edge_position_px
+    - edge_position_mm
+
+compliance:
+  auditConfigChanges: false

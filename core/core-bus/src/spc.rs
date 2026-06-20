@@ -7,6 +7,21 @@ use capnp::message::Builder;
 use sfi_contracts::result_capnp;
 use sfi_plugin_host::TaskResponse;
 
+const MEASURE_METRIC_UNITS: &[(&str, &str)] = &[
+    ("edge_position_px", "px"),
+    ("edge_position_mm", "mm"),
+    ("edge_deviation_px", "px"),
+    ("edge_deviation_mm", "mm"),
+    ("edge_strength", "dn"),
+    ("line_width_px", "px"),
+    ("line_width_mm", "mm"),
+    ("circle_diameter_px", "px"),
+    ("circle_diameter_mm", "mm"),
+    ("circle_radius_px", "px"),
+    ("dimension_deviation_px", "px"),
+    ("dimension_deviation_mm", "mm"),
+];
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct SpcMetricValue {
     pub name: String,
@@ -48,7 +63,16 @@ impl SpcEngine {
     pub fn ingest(&self, frame_id: u64, resp: &TaskResponse, published_at_ns: u64) -> SpcSnapshot {
         let gray_mean = metric_value(resp, "gray_mean")
             .unwrap_or_else(|| metric_value(resp, "bright_pixels").unwrap_or(0.0));
-        let is_ng = !resp.detections.is_empty() || resp.status == "error";
+        let is_ng = resp.status == "error"
+            || resp.detections.iter().any(|d| {
+                if d.class_id == 10 || d.class_id == 11 {
+                    return false;
+                }
+                d.class_id == 1
+                    || d.class_id == 99
+                    || d.label == "surface_defect"
+                    || d.label == "defect"
+            });
 
         let mut state = self.inner.lock().expect("spc lock");
         let window = state.window;
@@ -64,31 +88,42 @@ impl SpcEngine {
 
         let defect_components = metric_value(resp, "defect_components").unwrap_or(0.0);
 
+        let mut values = vec![
+            SpcMetricValue {
+                name: "gray_mean".into(),
+                value: gray_mean,
+                unit: "dn".into(),
+            },
+            SpcMetricValue {
+                name: "gray_mean_rolling".into(),
+                value: gray_rolling,
+                unit: "dn".into(),
+            },
+            SpcMetricValue {
+                name: "ng_rate".into(),
+                value: ng_rate,
+                unit: "ratio".into(),
+            },
+            SpcMetricValue {
+                name: "defect_components".into(),
+                value: defect_components,
+                unit: "count".into(),
+            },
+        ];
+        for (name, unit) in MEASURE_METRIC_UNITS {
+            if let Some(v) = metric_value(resp, name) {
+                values.push(SpcMetricValue {
+                    name: (*name).into(),
+                    value: v,
+                    unit: (*unit).into(),
+                });
+            }
+        }
+
         let snapshot = SpcSnapshot {
             frame_id,
             published_at_ns,
-            values: vec![
-                SpcMetricValue {
-                    name: "gray_mean".into(),
-                    value: gray_mean,
-                    unit: "dn".into(),
-                },
-                SpcMetricValue {
-                    name: "gray_mean_rolling".into(),
-                    value: gray_rolling,
-                    unit: "dn".into(),
-                },
-                SpcMetricValue {
-                    name: "ng_rate".into(),
-                    value: ng_rate,
-                    unit: "ratio".into(),
-                },
-                SpcMetricValue {
-                    name: "defect_components".into(),
-                    value: defect_components,
-                    unit: "count".into(),
-                },
-            ],
+            values,
         };
         state.last = Some(snapshot.clone());
         snapshot

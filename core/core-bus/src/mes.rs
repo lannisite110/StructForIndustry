@@ -27,9 +27,15 @@ impl InspectionReport {
         shm_name: &str,
         image_path: Option<String>,
     ) -> Self {
-        let defect_count = resp.detections.len() as u32;
+        let defect_count = resp
+            .detections
+            .iter()
+            .filter(|d| is_surface_defect(d))
+            .count() as u32;
         let verdict = if defect_count > 0 || resp.status == "error" {
             "NG"
+        } else if params.task_type.starts_with("vision.measure.") {
+            if resp.status == "error" { "NG" } else { "OK" }
         } else {
             "OK"
         };
@@ -44,6 +50,17 @@ impl InspectionReport {
             image_path,
         }
     }
+}
+
+fn is_surface_defect(d: &sfi_plugin_host::Detection) -> bool {
+    // Measure overlays (edge / dimension) are not inspection defects.
+    if d.class_id == 10 || d.class_id == 11 {
+        return false;
+    }
+    d.class_id == 1
+        || d.class_id == 99
+        || d.label == "surface_defect"
+        || d.label == "defect"
 }
 
 pub async fn post_mes_report(endpoint: &str, report: &InspectionReport) -> Result<(), MesError> {

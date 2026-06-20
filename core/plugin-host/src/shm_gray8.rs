@@ -171,6 +171,208 @@ pub fn crop_roi(
     (out, w, h)
 }
 
+/// Parabolic sub-pixel offset from three gradient samples (offset in [-1, 1]).
+pub fn parabolic_subpixel(y0: f64, y1: f64, y2: f64) -> f64 {
+    let denom = y0 - 2.0 * y1 + y2;
+    if denom.abs() < 1e-6 {
+        return 0.0;
+    }
+    0.5 * (y0 - y2) / denom
+}
+
+/// Horizontal edge caliper on row `y` between `x0` and `x1`.
+/// `polarity`: `rising`, `falling`, or `both`. Returns `(subpixel_x, strength)`.
+#[allow(clippy::too_many_arguments)]
+pub fn edge_caliper_horizontal(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    y: u32,
+    x0: u32,
+    x1: u32,
+    polarity: &str,
+) -> Option<(f64, f64)> {
+    let width = width as i32;
+    let height = height as i32;
+    let mut y = y as i32;
+    let mut x0 = x0 as i32;
+    let mut x1 = x1 as i32;
+    y = y.clamp(0, height - 1);
+    x0 = x0.clamp(0, width - 1);
+    x1 = x1.clamp(0, width - 1);
+    if x0 > x1 {
+        std::mem::swap(&mut x0, &mut x1);
+    }
+    if x1 - x0 < 2 {
+        return None;
+    }
+    let row = y * width;
+    let mut best_i = 0;
+    let mut best_g = -1.0;
+    for x in x0..x1 {
+        let g = pixels[(row + x + 2) as usize] as f64 - pixels[(row + x + 1) as usize] as f64;
+        let mag = match polarity {
+            "falling" => -g,
+            "both" => g.abs(),
+            _ => g,
+        };
+        if mag > best_g {
+            best_g = mag;
+            best_i = x;
+        }
+    }
+    if best_g <= 0.0 {
+        return None;
+    }
+    let i = best_i;
+    let mut g0 = pixels[(row + i + 1) as usize] as f64 - pixels[(row + i) as usize] as f64;
+    let g1 = pixels[(row + i + 2) as usize] as f64 - pixels[(row + i + 1) as usize] as f64;
+    let mut g2 = if i + 2 < x1 {
+        pixels[(row + i + 3) as usize] as f64 - pixels[(row + i + 2) as usize] as f64
+    } else {
+        g1
+    };
+    if polarity == "falling" {
+        g0 = -g0;
+        g2 = -g2;
+    } else if polarity == "both" {
+        g0 = g0.abs();
+        g2 = g2.abs();
+    }
+    let sub = parabolic_subpixel(g0, g1, g2);
+    Some((i as f64 + 0.5 + sub, best_g))
+}
+
+/// Vertical edge caliper on column `x` between `y0` and `y1`.
+#[allow(clippy::too_many_arguments)]
+pub fn edge_caliper_vertical(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y0: u32,
+    y1: u32,
+    polarity: &str,
+) -> Option<(f64, f64)> {
+    let width = width as i32;
+    let height = height as i32;
+    let mut x = x as i32;
+    let mut y0 = y0 as i32;
+    let mut y1 = y1 as i32;
+    x = x.clamp(0, width - 1);
+    y0 = y0.clamp(0, height - 1);
+    y1 = y1.clamp(0, height - 1);
+    if y0 > y1 {
+        std::mem::swap(&mut y0, &mut y1);
+    }
+    if y1 - y0 < 2 {
+        return None;
+    }
+    let mut best_i = 0;
+    let mut best_g = -1.0;
+    for y in y0..y1 {
+        let g = pixels[((y + 2) * width + x) as usize] as f64
+            - pixels[((y + 1) * width + x) as usize] as f64;
+        let mag = match polarity {
+            "falling" => -g,
+            "both" => g.abs(),
+            _ => g,
+        };
+        if mag > best_g {
+            best_g = mag;
+            best_i = y;
+        }
+    }
+    if best_g <= 0.0 {
+        return None;
+    }
+    let i = best_i;
+    let mut g0 = pixels[((i + 1) * width + x) as usize] as f64
+        - pixels[(i * width + x) as usize] as f64;
+    let g1 = pixels[((i + 2) * width + x) as usize] as f64
+        - pixels[((i + 1) * width + x) as usize] as f64;
+    let mut g2 = if i + 2 < y1 {
+        pixels[((i + 3) * width + x) as usize] as f64
+            - pixels[((i + 2) * width + x) as usize] as f64
+    } else {
+        g1
+    };
+    if polarity == "falling" {
+        g0 = -g0;
+        g2 = -g2;
+    } else if polarity == "both" {
+        g0 = g0.abs();
+        g2 = g2.abs();
+    }
+    let sub = parabolic_subpixel(g0, g1, g2);
+    Some((i as f64 + 0.5 + sub, best_g))
+}
+
+/// Horizontal line width via rising + falling edges on row `y`.
+pub fn measure_line_width_horizontal(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    y: u32,
+    x0: u32,
+    x1: u32,
+) -> Option<(f64, f64, f64, f64)> {
+    let left = edge_caliper_horizontal(pixels, width, height, y, x0, x1, "rising")?;
+    let right = edge_caliper_horizontal(pixels, width, height, y, x0, x1, "falling")?;
+    let w = right.0 - left.0;
+    if w <= 0.0 {
+        return None;
+    }
+    Some((w, left.0, right.0, (left.1 + right.1) / 2.0))
+}
+
+/// Disk diameter via horizontal caliper through `cy`.
+pub fn measure_circle_diameter_horizontal(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    cy: u32,
+    x0: u32,
+    x1: u32,
+) -> Option<(f64, f64, f64, f64)> {
+    let w = measure_line_width_horizontal(pixels, width, height, cy, x0, x1)?;
+    Some((w.0, w.0 / 2.0, w.1, w.2))
+}
+
+/// Gray8 frame with a vertical rising edge at `edge_x` on scan row `scan_y`.
+pub fn write_measure_edge_pattern(
+    path: &Path,
+    width: u32,
+    height: u32,
+    scan_y: u32,
+    edge_x: u32,
+    dark: u8,
+    bright: u8,
+) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let stride = width;
+    let len = (stride * height) as usize;
+    let mut buf = vec![0u8; len];
+    let edge_x = edge_x.min(width.saturating_sub(1));
+    let scan_y = scan_y.min(height.saturating_sub(1));
+    for y in 0..height {
+        for x in 0..width {
+            let v = if x < edge_x { dark } else { bright };
+            buf[y as usize * stride as usize + x as usize] = v;
+        }
+    }
+    // soften edge for sub-pixel gradient (1px ramp)
+    if edge_x > 0 && edge_x < width {
+        let idx = scan_y as usize * stride as usize + edge_x as usize;
+        buf[idx] = ((dark as u16 + bright as u16) / 2) as u8;
+    }
+    std::fs::write(path, buf)
+}
+
 pub fn write_test_pattern(
     path: &Path,
     width: u32,
@@ -218,11 +420,32 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_write_read() {
+    fn edge_caliper_finds_rising_edge() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join("frame.raw");
-        write_test_pattern(&path, 8, 8, true).unwrap();
-        let pixels = read_gray8(path.to_str().unwrap(), 64, 0).unwrap();
-        assert!(bright_pixel_count(&pixels, 128) >= 1);
+        let path = dir.path().join("edge.raw");
+        write_measure_edge_pattern(&path, 128, 64, 32, 48, 30, 220).unwrap();
+        let pixels = read_gray8(path.to_str().unwrap(), 128 * 64, 0).unwrap();
+        let edge = edge_caliper_horizontal(&pixels, 128, 64, 32, 0, 127, "rising").unwrap();
+        assert!(edge.0 > 45.0 && edge.0 < 52.0);
+        assert!(edge.1 > 0.0);
+    }
+
+    #[test]
+    fn line_width_from_edges() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("bar.raw");
+        // bright bar 40..80 on dark background
+        let w = 200u32;
+        let h = 40u32;
+        let mut buf = vec![20u8; (w * h) as usize];
+        for y in 0..h {
+            for x in 40..80 {
+                buf[y as usize * w as usize + x] = 200;
+            }
+        }
+        std::fs::write(&path, buf).unwrap();
+        let pixels = read_gray8(path.to_str().unwrap(), (w * h) as u64, 0).unwrap();
+        let m = measure_line_width_horizontal(&pixels, w, h, 20, 0, 199).unwrap();
+        assert!(m.0 > 35.0 && m.0 < 45.0);
     }
 }
