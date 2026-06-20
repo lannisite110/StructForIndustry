@@ -12,8 +12,32 @@ pub const WIDTH: u32 = 64;
 pub const HEIGHT: u32 = 48;
 pub const STRIDE: u32 = 64;
 
+/// Gray8 raster layout for shm + HAL notify.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Gray8Layout {
+    pub width: u32,
+    pub height: u32,
+    pub stride: u32,
+}
+
+impl Gray8Layout {
+    pub fn byte_length(self) -> usize {
+        (self.stride * self.height) as usize
+    }
+}
+
+impl Default for Gray8Layout {
+    fn default() -> Self {
+        Self {
+            width: WIDTH,
+            height: HEIGHT,
+            stride: STRIDE,
+        }
+    }
+}
+
 pub fn byte_length() -> usize {
-    (STRIDE * HEIGHT) as usize
+    Gray8Layout::default().byte_length()
 }
 
 pub fn shm_file_path(name: &str) -> PathBuf {
@@ -73,13 +97,22 @@ pub fn map_shm(name: &str, size: usize) -> io::Result<MmapMut> {
 }
 
 pub fn build_notify(frame_id: u64, shm_name: &str, byte_len: u64) -> HalFrameNotify {
+    build_notify_layout(frame_id, shm_name, Gray8Layout::default(), byte_len)
+}
+
+pub fn build_notify_layout(
+    frame_id: u64,
+    shm_name: &str,
+    layout: Gray8Layout,
+    byte_len: u64,
+) -> HalFrameNotify {
     let mut notify = HalFrameNotify {
         frame_id,
         timestamp_ns: now_ns(),
         sequence: frame_id,
-        width: WIDTH,
-        height: HEIGHT,
-        stride: STRIDE,
+        width: layout.width,
+        height: layout.height,
+        stride: layout.stride,
         format: 1,
         source_id: [0; SOURCE_ID_LEN],
         pool_id: [0; POOL_ID_LEN],
@@ -92,6 +125,39 @@ pub fn build_notify(frame_id: u64, shm_name: &str, byte_len: u64) -> HalFrameNot
     copy_str(&mut notify.pool_id, "hal.line");
     copy_str(&mut notify.shm_name, &shm_notify_name(shm_name));
     notify
+}
+
+/// Convert packed YUYV (YUV 4:2:2) to gray8 row-major with optional stride padding.
+pub fn yuyv_to_gray8(yuyv: &[u8], layout: Gray8Layout, dst: &mut [u8]) {
+    let w = layout.width as usize;
+    let h = layout.height as usize;
+    let stride = layout.stride as usize;
+    assert!(dst.len() >= stride * h);
+    let need = w * h * 2;
+    assert!(yuyv.len() >= need);
+    for y in 0..h {
+        let row_off = y * stride;
+        let src_row = y * w * 2;
+        for x in 0..w {
+            dst[row_off + x] = yuyv[src_row + x * 2];
+        }
+    }
+}
+
+/// Copy gray8 pixels into a strided buffer (truncates if source is smaller).
+pub fn gray8_to_strided(src: &[u8], layout: Gray8Layout, dst: &mut [u8]) {
+    let w = layout.width as usize;
+    let h = layout.height as usize;
+    let stride = layout.stride as usize;
+    for y in 0..h {
+        let row_off = y * stride;
+        let src_row = y * w;
+        for x in 0..w {
+            if src_row + x < src.len() {
+                dst[row_off + x] = src[src_row + x];
+            }
+        }
+    }
 }
 
 fn copy_str(dst: &mut [u8], s: &str) {
@@ -117,5 +183,18 @@ mod tests {
             shm_file_path("sfi.aoi.demo"),
             PathBuf::from("/dev/shm/sfi.aoi.demo")
         );
+    }
+
+    #[test]
+    fn yuyv_to_gray8_extracts_luma() {
+        let layout = Gray8Layout {
+            width: 2,
+            height: 2,
+            stride: 2,
+        };
+        let yuyv = [10, 128, 20, 128, 30, 128, 40, 128];
+        let mut gray = [0u8; 4];
+        yuyv_to_gray8(&yuyv, layout, &mut gray);
+        assert_eq!(gray, [10, 20, 30, 40]);
     }
 }

@@ -67,6 +67,23 @@ jobs:
       - name: ai-infer E2E
         run: ./tools/scripts/ai-infer-e2e.sh
 
+      - name: v4l2 capture E2E
+        run: |
+          sudo apt-get install -y v4l2loopback-dkms ffmpeg
+          chmod +x tools/scripts/setup-v4l2loopback.sh \
+            tools/scripts/v4l2-capture-e2e.sh \
+            tools/scripts/v4l2-trigger-e2e.sh \
+            tools/scripts/gige-capture-e2e.sh \
+            tools/scripts/modbus-plc-e2e.sh
+          tools/scripts/setup-v4l2loopback.sh
+          SFI_V4L2_DEVICE=/dev/video42 ./tools/scripts/v4l2-capture-e2e.sh
+          SFI_V4L2_DEVICE=/dev/video42 ./tools/scripts/v4l2-trigger-e2e.sh
+
+      - name: gige + modbus E2E
+        run: |
+          ./tools/scripts/gige-capture-e2e.sh
+          ./tools/scripts/modbus-plc-e2e.sh
+
       - uses: goto-bus-stop/setup-zig@v2
         with:
           version: 0.13.0

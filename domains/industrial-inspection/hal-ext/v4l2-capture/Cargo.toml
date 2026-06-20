@@ -1,0 +1,23 @@
+[workspace]
+
+[package]
+name = "sfi-v4l2-capture"
+version = "0.0.1"
+description = "V4L2 USB camera capture → Gray8 shm + HAL notify (Phase 3)"
+edition = "2021"
+license = "Apache-2.0"
+
+[[bin]]
+name = "sfi-v4l2-capture"
+path = "src/main.rs"
+
+[dependencies]
+memmap2 = "0.9"
+sfi-core-bus = { path = "../../../../core/core-bus" }
+sfi-line-frame = { path = "../line-frame" }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.29", features = ["ioctl"] }

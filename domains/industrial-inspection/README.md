@@ -68,7 +68,10 @@ See [`profiles/`](profiles/) for field-level configuration.
 | examples/aoi-line-demo | ✅ full stack script |
 | Web preview (`/` on sfi-bus) | ✅ + SPC trend chart |
 | 1080p bench test | ✅ `bench_1080p` + script |
-| hal-ext PLC/GigE | 🔲 real hardware (sim OK) |
+| hal-ext V4L2 USB | ✅ `sfi-v4l2-capture` (GREY/YUYV, freerun + TRIG) |
+| hal-ext GigE | 🚧 mock + SDK scaffold (`sfi-gige-capture`) |
+| hal-ext Modbus PLC | ✅ `sfi-modbus-plc-trigger` (TCP coil + mock) |
+| hal-ext PLC sim | ✅ Unix `TRIG` socket (`sfi-plc-trigger`) |
 | plugins/ai-infer | 🚧 mock sidecar scaffold |
 
 ## Related domains

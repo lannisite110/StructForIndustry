@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name = "sfi-modbus-plc-trigger"
+version = "0.0.1"
+description = "Modbus TCP coil poll → HAL frame publish (Phase 3 real PLC scaffold)"
+edition = "2021"
+license = "Apache-2.0"
+
+[[bin]]
+name = "sfi-modbus-plc-trigger"
+path = "src/main.rs"
+
+[dependencies]
+memmap2 = "0.9"
+sfi-core-bus = { path = "../../../../core/core-bus" }
+sfi-line-frame = { path = "../line-frame" }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-modbus = { version = "0.14", default-features = false, features = ["tcp"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
